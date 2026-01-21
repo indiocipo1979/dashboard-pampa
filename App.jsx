@@ -4,14 +4,14 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
 import { 
-  LayoutDashboard, TrendingUp, DollarSign, Percent, Store, Calendar, RefreshCcw, LogOut, ChevronRight, FileText, ArrowRight, Wallet
+  LayoutDashboard, TrendingUp, DollarSign, Percent, Store, Calendar, RefreshCcw, LogOut, ChevronRight, FileText, ArrowRight, Wallet, AlertTriangle
 } from 'lucide-react';
 
 /**
  * PAMPA FIAMBRES - DASHBOARD DE GESTIÓN ESTRATÉGICA
  * Configuración: Libro Diario (Mes, Sucursal, Concepto, Subconcepto, Monto)
  * Contraseña Maestra: Pampa2026
- * Versión: Producción (Auto-Render)
+ * Versión: Producción (Auto-Render) con Debugging
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
@@ -43,6 +43,7 @@ const App = () => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState([]);
   const [error, setError] = useState(null);
+  const [usingMockData, setUsingMockData] = useState(false); // Estado para saber si son datos falsos
   const [lastUpdate, setLastUpdate] = useState(null);
   
   // Filtros de navegación
@@ -53,11 +54,27 @@ const App = () => {
   const fetchData = async () => {
     setLoading(true);
     setError(null);
+    setUsingMockData(false);
+    
     try {
       const res = await fetch('/.netlify/functions/get-data');
-      if (!res.ok) throw new Error("Error al conectar con Google Sheets");
+      
+      if (!res.ok) {
+        // Intentamos leer el mensaje de error del servidor
+        const errorText = await res.text();
+        throw new Error(`Error del servidor (${res.status}): ${errorText}`);
+      }
+
       const rawData = await res.json();
       
+      // Validación si viene vacío
+      if (!rawData || rawData.length === 0) {
+        setError("La conexión fue exitosa pero la hoja 'fact_ebitda' parece estar vacía.");
+        setUsingMockData(true);
+        setData(mockData);
+        return;
+      }
+
       // Limpieza y formateo de datos
       const formatted = rawData.map(item => ({
         ...item,
@@ -70,8 +87,11 @@ const App = () => {
 
       setData(formatted);
       setLastUpdate(new Date().toLocaleTimeString());
+
     } catch (err) {
-      setError(err.message);
+      console.error("Error fetching data:", err);
+      setError(`Fallo de conexión: ${err.message}`);
+      setUsingMockData(true); // Activamos modo debug/mock
       setData(mockData);
     } finally {
       setLoading(false);
@@ -163,6 +183,36 @@ const App = () => {
           <button onClick={() => setIsLoggedIn(false)} className="bg-slate-900 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-lg shadow-slate-900/10">SALIR</button>
         </div>
       </nav>
+
+      {/* --- CARTEL DE ERROR / DIAGNÓSTICO --- */}
+      {usingMockData && (
+        <div className="max-w-7xl mx-auto px-8 mt-6">
+          <div className="bg-red-50 border-l-8 border-red-500 p-6 rounded-r-2xl shadow-sm">
+            <div className="flex items-start gap-4">
+              <div className="bg-red-100 p-2 rounded-full">
+                <AlertTriangle className="text-red-600 w-6 h-6" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-black text-red-800 mb-1">¡ATENCIÓN! Modo de Prueba Activado</h3>
+                <p className="text-sm font-bold text-red-600 mb-2">
+                  No estamos leyendo tu Google Sheet real. Estás viendo datos falsos.
+                </p>
+                <div className="bg-white bg-opacity-60 p-3 rounded-lg text-xs font-mono text-red-800 mb-3 border border-red-100">
+                  <strong>Detalle del error:</strong> {error || "Error desconocido de conexión"}
+                </div>
+                <div className="text-xs text-red-700 space-y-1 font-medium">
+                  <p>🛠 <strong>Posibles soluciones:</strong></p>
+                  <ul className="list-disc pl-5 space-y-1">
+                    <li>Verifica que hayas compartido el Excel con el email de la Service Account (Lector).</li>
+                    <li>Revisa que la pestaña del Excel se llame exactamente <code>fact_ebitda</code> (todo minúscula).</li>
+                    <li>Revisa que el ID del Sheet en las variables de Netlify sea el correcto.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="max-w-7xl mx-auto px-8 mt-10 space-y-10">
         <div className="flex flex-wrap gap-4">
@@ -259,8 +309,6 @@ const mockData = [
   { Mes: '2024-01', Sucursal: 'Centro', Concepto: 'Ingreso', Subconcepto: 'Efectivo', Monto: 150000 },
 ];
 
-// --- MOTOR DE ARRANQUE (FIX) ---
-// Esto es lo que faltaba: la orden de dibujar la aplicación en el navegador.
 const root = createRoot(document.getElementById('root'));
 root.render(<App />);
 
