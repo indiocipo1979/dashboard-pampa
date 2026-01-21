@@ -4,19 +4,16 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
 import { 
-  LayoutDashboard, TrendingUp, DollarSign, Percent, Store, Calendar, RefreshCcw, LogOut, ChevronRight, FileText, ArrowRight, Wallet, AlertTriangle
+  LayoutDashboard, TrendingUp, DollarSign, Percent, Store, Calendar, RefreshCcw, LogOut, ChevronRight, FileText, ArrowRight, Wallet, AlertTriangle, CheckCircle, HelpCircle
 } from 'lucide-react';
 
 /**
- * PAMPA FIAMBRES - DASHBOARD DE GESTIÓN ESTRATÉGICA
- * Configuración: Libro Diario (Mes, Sucursal, Concepto, Subconcepto, Monto)
- * Contraseña Maestra: Pampa2026
- * Versión: Producción (Auto-Render) con Debugging
+ * PAMPA FIAMBRES - DASHBOARD DE GESTIÓN (MODO AUDITORÍA)
+ * Versión: Debugging de Cálculos
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
-// Componente para las tarjetas de indicadores (KPIs)
 const KPICard = ({ title, value, icon: Icon, color, detail, subtext }) => (
   <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col justify-between transition-all hover:shadow-md">
     <div className="flex justify-between items-start mb-4">
@@ -43,55 +40,42 @@ const App = () => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState([]);
   const [error, setError] = useState(null);
-  const [usingMockData, setUsingMockData] = useState(false); // Estado para saber si son datos falsos
-  const [lastUpdate, setLastUpdate] = useState(null);
+  const [usingMockData, setUsingMockData] = useState(false);
   
-  // Filtros de navegación
   const [selectedBranch, setSelectedBranch] = useState('Todas');
   const [selectedMonth, setSelectedMonth] = useState('Acumulado');
 
-  // Función para obtener datos desde la API (Netlify Function)
   const fetchData = async () => {
     setLoading(true);
     setError(null);
     setUsingMockData(false);
-    
     try {
       const res = await fetch('/.netlify/functions/get-data');
-      
       if (!res.ok) {
-        // Intentamos leer el mensaje de error del servidor
         const errorText = await res.text();
         throw new Error(`Error del servidor (${res.status}): ${errorText}`);
       }
-
       const rawData = await res.json();
-      
-      // Validación si viene vacío
       if (!rawData || rawData.length === 0) {
-        setError("La conexión fue exitosa pero la hoja 'fact_ebitda' parece estar vacía.");
+        setError("Hoja vacía o sin datos.");
         setUsingMockData(true);
         setData(mockData);
         return;
       }
-
-      // Limpieza y formateo de datos
       const formatted = rawData.map(item => ({
         ...item,
-        Monto: parseFloat(String(item.Monto || 0).replace(/[$.]/g, '').replace(',', '.')) || 0,
+        // Forzamos valor positivo absoluto para evitar errores de signos en el Excel
+        Monto: Math.abs(parseFloat(String(item.Monto || 0).replace(/[$.]/g, '').replace(',', '.')) || 0),
         Mes: String(item.Mes || '').trim(),
         Sucursal: String(item.Sucursal || '').trim(),
         Concepto: String(item.Concepto || '').trim(),
         Subconcepto: String(item.Subconcepto || '').trim()
       }));
-
       setData(formatted);
-      setLastUpdate(new Date().toLocaleTimeString());
-
     } catch (err) {
       console.error("Error fetching data:", err);
       setError(`Fallo de conexión: ${err.message}`);
-      setUsingMockData(true); // Activamos modo debug/mock
+      setUsingMockData(true);
       setData(mockData);
     } finally {
       setLoading(false);
@@ -104,65 +88,76 @@ const App = () => {
       setIsLoggedIn(true);
       fetchData();
     } else {
-      alert("Contraseña incorrecta. Intenta nuevamente con Pampa2026.");
+      alert("Contraseña incorrecta.");
     }
   };
 
-  // --- MOTOR DE CÁLCULO DE EBITDA ---
-  const stats = useMemo(() => {
+  // --- LÓGICA DE AUDITORÍA ---
+  const audit = useMemo(() => {
     const filtered = data.filter(d => {
       const b = selectedBranch === 'Todas' || d.Sucursal === selectedBranch;
       const m = selectedMonth === 'Acumulado' || d.Mes === selectedMonth;
       return b && m;
     });
 
-    const matches = (val, search) => val.toLowerCase().includes(search.toLowerCase());
+    const buckets = {
+      ventas: [],
+      cmv: [],
+      gastos: [],
+      comisiones: [],
+      ignorados: []
+    };
 
-    const efectivo = filtered.filter(d => matches(d.Subconcepto, 'efectivo')).reduce((a, b) => a + b.Monto, 0);
-    const posnet = filtered.filter(d => matches(d.Subconcepto, 'posnet')).reduce((a, b) => a + b.Monto, 0);
-    const comisiones = filtered.filter(d => matches(d.Subconcepto, 'comision')).reduce((a, b) => a + b.Monto, 0);
-    const cmv = filtered.filter(d => matches(d.Subconcepto, 'cmv')).reduce((a, b) => a + b.Monto, 0);
-
-    const egresosOperativos = filtered.filter(d => {
-      const isEgreso = matches(d.Concepto, 'egreso') || matches(d.Concepto, 'gasto');
-      const isDirect = matches(d.Subconcepto, 'cmv') || matches(d.Subconcepto, 'comision');
-      return isEgreso && !isDirect;
+    filtered.forEach(row => {
+      const sub = row.Subconcepto.toLowerCase();
+      const con = row.Concepto.toLowerCase();
+      
+      if (sub.includes('efectivo') || sub.includes('posnet')) {
+        buckets.ventas.push(row);
+      } else if (sub.includes('cmv')) {
+        buckets.cmv.push(row);
+      } else if (sub.includes('comision')) {
+        buckets.comisiones.push(row);
+      } else if (con.includes('egreso') || con.includes('gasto')) {
+        // Si es egreso y no es lo anterior, es Gasto Fijo
+        buckets.gastos.push(row);
+      } else {
+        // Si no entra en nada (ej: Ingreso que no es efectivo/posnet)
+        buckets.ignorados.push(row);
+      }
     });
 
-    const totalGastosFijos = egresosOperativos.reduce((a, b) => a + b.Monto, 0);
-    const ventasBrutas = efectivo + posnet;
-    const ventasNetas = ventasBrutas - comisiones;
-    const ebitda = ventasNetas - cmv - totalGastosFijos;
+    const sum = (arr) => arr.reduce((a, b) => a + b.Monto, 0);
+
+    const ventasBrutas = sum(buckets.ventas);
+    const totalComis = sum(buckets.comisiones);
+    const totalCmv = sum(buckets.cmv);
+    const totalGastos = sum(buckets.gastos);
+    
+    const ventasNetas = ventasBrutas - totalComis;
+    const ebitda = ventasNetas - totalCmv - totalGastos;
     const margenPct = ventasNetas > 0 ? (ebitda / ventasNetas) * 100 : 0;
 
-    return { ventasNetas, ebitda, margenPct, totalGastosFijos, efectivo, posnet, comisiones };
+    return { 
+      ventasNetas, ebitda, margenPct, totalGastos, 
+      buckets, ventasBrutas, totalCmv, totalComis,
+      efectivo: sum(buckets.ventas.filter(r => r.Subconcepto.toLowerCase().includes('efectivo'))),
+      posnet: sum(buckets.ventas.filter(r => r.Subconcepto.toLowerCase().includes('posnet')))
+    };
   }, [data, selectedBranch, selectedMonth]);
 
   const branches = ['Todas', ...new Set(data.map(d => d.Sucursal))].filter(Boolean);
   const months = ['Acumulado', ...new Set(data.map(d => d.Mes))].filter(Boolean).sort().reverse();
-
   const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(val);
 
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-white rounded-[2.5rem] shadow-2xl p-10 text-center border-b-8 border-amber-500">
-          <div className="bg-amber-500 w-20 h-20 rounded-3xl mx-auto mb-8 flex items-center justify-center text-white shadow-xl shadow-amber-500/20 rotate-3">
-            <LayoutDashboard size={40} className="-rotate-3" />
-          </div>
-          <h2 className="text-3xl font-black text-slate-800 mb-2 tracking-tighter">PAMPA</h2>
-          <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-10">Tablero Estratégico</p>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <input 
-              type="password" 
-              placeholder="Contraseña Maestra"
-              className="w-full px-6 py-4 rounded-2xl border-2 border-slate-100 focus:border-amber-500 outline-none text-center font-black text-lg transition-all"
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-            <button className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black hover:bg-slate-800 transition-all flex items-center justify-center gap-2 group">
-              ACCEDER <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-            </button>
+          <h2 className="text-3xl font-black text-slate-800 mb-2">PAMPA</h2>
+          <form onSubmit={handleLogin} className="space-y-4 mt-8">
+            <input type="password" placeholder="Contraseña" className="w-full px-6 py-4 rounded-2xl border-2 text-center" onChange={(e) => setPassword(e.target.value)} />
+            <button className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black">INGRESAR</button>
           </form>
         </div>
       </div>
@@ -172,143 +167,89 @@ const App = () => {
   return (
     <div className="min-h-screen bg-[#FDFDFD] pb-20 font-sans text-slate-900">
       <nav className="bg-white border-b border-slate-100 h-20 px-8 flex items-center justify-between sticky top-0 z-50">
-        <div className="flex items-center gap-4">
-          <div className="bg-amber-500 p-2 rounded-xl text-white font-black text-xl shadow-lg shadow-amber-500/20">P</div>
-          <h1 className="font-black text-lg tracking-tighter uppercase leading-none hidden sm:block">Pampa Dashboard</h1>
-        </div>
-        <div className="flex items-center gap-4">
-          <button onClick={fetchData} className="p-3 bg-slate-50 hover:bg-slate-100 rounded-2xl transition-all text-slate-400">
-            <RefreshCcw size={20} className={loading ? 'animate-spin' : ''} />
-          </button>
-          <button onClick={() => setIsLoggedIn(false)} className="bg-slate-900 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-lg shadow-slate-900/10">SALIR</button>
+        <h1 className="font-black text-lg">Pampa Dashboard</h1>
+        <div className="flex gap-4">
+          <button onClick={fetchData} className="p-3 bg-slate-50 rounded-2xl"><RefreshCcw size={20}/></button>
+          <button onClick={() => setIsLoggedIn(false)} className="bg-slate-900 text-white px-6 py-2.5 rounded-2xl text-xs font-bold">SALIR</button>
         </div>
       </nav>
 
-      {/* --- CARTEL DE ERROR / DIAGNÓSTICO --- */}
-      {usingMockData && (
-        <div className="max-w-7xl mx-auto px-8 mt-6">
-          <div className="bg-red-50 border-l-8 border-red-500 p-6 rounded-r-2xl shadow-sm">
-            <div className="flex items-start gap-4">
-              <div className="bg-red-100 p-2 rounded-full">
-                <AlertTriangle className="text-red-600 w-6 h-6" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-black text-red-800 mb-1">¡ATENCIÓN! Modo de Prueba Activado</h3>
-                <p className="text-sm font-bold text-red-600 mb-2">
-                  No estamos leyendo tu Google Sheet real. Estás viendo datos falsos.
-                </p>
-                <div className="bg-white bg-opacity-60 p-3 rounded-lg text-xs font-mono text-red-800 mb-3 border border-red-100">
-                  <strong>Detalle del error:</strong> {error || "Error desconocido de conexión"}
-                </div>
-                <div className="text-xs text-red-700 space-y-1 font-medium">
-                  <p>🛠 <strong>Posibles soluciones:</strong></p>
-                  <ul className="list-disc pl-5 space-y-1">
-                    <li>Verifica que hayas compartido el Excel con el email de la Service Account (Lector).</li>
-                    <li>Revisa que la pestaña del Excel se llame exactamente <code>fact_ebitda</code> (todo minúscula).</li>
-                    <li>Revisa que el ID del Sheet en las variables de Netlify sea el correcto.</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {usingMockData && <div className="bg-red-50 p-4 text-center text-red-600 font-bold">⚠️ MODO PRUEBA (Error de conexión: {error})</div>}
 
       <main className="max-w-7xl mx-auto px-8 mt-10 space-y-10">
         <div className="flex flex-wrap gap-4">
-          <div className="bg-white px-5 py-3 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-3">
-            <Store size={18} className="text-slate-300" />
-            <select className="font-black text-xs uppercase outline-none bg-transparent cursor-pointer" value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)}>
-              {branches.map(b => <option key={b} value={b}>{b}</option>)}
-            </select>
-          </div>
-          <div className="bg-white px-5 py-3 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-3">
-            <Calendar size={18} className="text-slate-300" />
-            <select className="font-black text-xs uppercase outline-none bg-transparent cursor-pointer" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
-              {months.map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
-          </div>
+          <select className="bg-white px-5 py-3 rounded-2xl shadow-sm font-bold text-xs uppercase" value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)}>
+            {branches.map(b => <option key={b} value={b}>{b}</option>)}
+          </select>
+          <select className="bg-white px-5 py-3 rounded-2xl shadow-sm font-bold text-xs uppercase" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
+            {months.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <KPICard title="Ventas Netas" value={formatCurrency(stats.ventasNetas)} icon={TrendingUp} color="bg-blue-600" detail="Ingresos Reales" subtext={`Comisiones: ${formatCurrency(stats.comisiones)}`} />
-          <KPICard title="EBITDA" value={formatCurrency(stats.ebitda)} icon={DollarSign} color="bg-emerald-600" detail="Caja Operativa" subtext="Utilidad Final" />
-          <KPICard title="Margen EBITDA" value={`${stats.margenPct.toFixed(1)}%`} icon={Percent} color="bg-amber-600" detail="Rendimiento" subtext="Meta: > 20%" />
-          <KPICard title="Gastos Fijos" value={formatCurrency(stats.totalGastosFijos)} icon={FileText} color="bg-red-600" detail="Estructura" subtext="Costos Operativos" />
+          <KPICard title="Ventas Brutas" value={formatCurrency(audit.ventasBrutas)} icon={TrendingUp} color="bg-blue-600" detail="Total Facturado" />
+          <KPICard title="Gastos Fijos" value={formatCurrency(audit.totalGastos)} icon={FileText} color="bg-red-600" detail="Operativos" />
+          <KPICard title="CMV" value={formatCurrency(audit.totalCmv)} icon={Store} color="bg-orange-500" detail="Costo Mercadería" />
+          <KPICard title="EBITDA" value={formatCurrency(audit.ebitda)} icon={DollarSign} color="bg-emerald-600" detail="Resultado" />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
-            <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-10">Evolución Mensual</h3>
-            <ResponsiveContainer width="100%" height="80%">
-              <AreaChart data={getEvolution(data)}>
-                <defs>
-                  <linearGradient id="colorNetas" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#cbd5e1'}} dy={10} />
-                <YAxis hide />
-                <Tooltip contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)'}} />
-                <Area type="monotone" dataKey="ventas" name="Ventas" stroke="#3b82f6" strokeWidth={4} fill="url(#colorNetas)" />
-                <Area type="monotone" dataKey="ebitda" name="EBITDA" stroke="#10b981" strokeWidth={4} fill="none" />
-              </AreaChart>
-            </ResponsiveContainer>
+        {/* --- SECCIÓN DE AUDITORÍA --- */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100">
+            <h3 className="font-black text-slate-800 mb-6 flex items-center gap-2">
+              <CheckCircle className="text-emerald-500" size={20}/> Qué estamos sumando
+            </h3>
+            <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+              <div className="mb-4">
+                <p className="text-xs font-bold text-slate-400 uppercase mb-2">Ventas ({audit.buckets.ventas.length} registros)</p>
+                {audit.buckets.ventas.map((r, i) => (
+                  <div key={i} className="flex justify-between text-xs border-b border-slate-50 py-1">
+                    <span>{r.Subconcepto} ({r.Mes})</span>
+                    <span className="font-bold text-blue-600">{formatCurrency(r.Monto)}</span>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase mb-2">Gastos Fijos ({audit.buckets.gastos.length} registros)</p>
+                {audit.buckets.gastos.map((r, i) => (
+                  <div key={i} className="flex justify-between text-xs border-b border-slate-50 py-1">
+                    <span>{r.Subconcepto} ({r.Mes})</span>
+                    <span className="font-bold text-red-600">{formatCurrency(r.Monto)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
-          <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
-            <h3 className="font-black text-slate-800 mb-10 uppercase text-xs tracking-widest">Mix de Ventas</h3>
-            <ResponsiveContainer width="100%" height="70%">
-              <PieChart>
-                <Pie data={[{name: 'Efectivo', value: stats.efectivo}, {name: 'Posnet', value: stats.posnet}]} innerRadius={70} outerRadius={90} paddingAngle={10} dataKey="value">
-                  <Cell fill="#10b981" />
-                  <Cell fill="#3b82f6" />
-                </Pie>
-                <Tooltip />
-                <Legend iconType="circle" wrapperStyle={{paddingTop: '20px', fontWeight: 'bold'}} />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="mt-4 p-4 bg-slate-50 rounded-2xl flex items-center gap-3">
-              <Wallet className="text-amber-500" size={20} />
-              <p className="text-xs font-black text-slate-600 uppercase">
-                {stats.efectivo > stats.posnet ? 'Lidera el Efectivo' : 'Lidera el Posnet'}
-              </p>
+          <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 border-l-8 border-l-amber-400">
+            <h3 className="font-black text-slate-800 mb-6 flex items-center gap-2">
+              <HelpCircle className="text-amber-500" size={20}/> Lo que NO se sumó (Ignorados)
+            </h3>
+            <p className="text-sm text-slate-500 mb-4">Estos registros existen en el Excel pero el sistema no supo clasificarlos. Revisa si escribiste mal "Efectivo", "Egreso" o "CMV".</p>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {audit.buckets.ignorados.length === 0 ? (
+                <p className="text-emerald-600 font-bold text-sm">¡Perfecto! Todo clasificado.</p>
+              ) : (
+                audit.buckets.ignorados.map((r, i) => (
+                  <div key={i} className="bg-amber-50 p-3 rounded-xl flex justify-between items-center">
+                    <div>
+                      <p className="text-xs font-bold text-slate-700">{r.Concepto} / {r.Subconcepto}</p>
+                      <p className="text-[10px] text-slate-400">{r.Mes} - {r.Sucursal}</p>
+                    </div>
+                    <span className="font-mono text-xs font-bold text-slate-600">{formatCurrency(r.Monto)}</span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
+
       </main>
     </div>
   );
 };
 
-// --- DATOS MOCK Y HELPERS ---
-const getEvolution = (data) => {
-  const months = [...new Set(data.map(d => d.Mes))].filter(Boolean).sort();
-  const matches = (val, search) => val.toLowerCase().includes(search.toLowerCase());
-
-  return months.map(m => {
-    const period = data.filter(d => d.Mes === m);
-    const vBrutas = period.filter(d => matches(d.Subconcepto, 'efectivo') || matches(d.Subconcepto, 'posnet')).reduce((a, b) => a + b.Monto, 0);
-    const comisiones = period.filter(d => matches(d.Subconcepto, 'comision')).reduce((a, b) => a + b.Monto, 0);
-    const cmv = period.filter(d => matches(d.Subconcepto, 'cmv')).reduce((a, b) => a + b.Monto, 0);
-    const vNetas = vBrutas - comisiones;
-    
-    const gastos = period.filter(d => {
-      const isEgreso = matches(d.Concepto, 'egreso') || matches(d.Concepto, 'gasto');
-      const isDirect = matches(d.Subconcepto, 'cmv') || matches(d.Subconcepto, 'comision');
-      return isEgreso && !isDirect;
-    }).reduce((a, b) => a + b.Monto, 0);
-
-    return { name: m, ventas: vNetas, ebitda: vNetas - cmv - gastos };
-  });
-};
-
-const mockData = [
-  { Mes: '2024-01', Sucursal: 'Centro', Concepto: 'Ingreso', Subconcepto: 'Efectivo', Monto: 150000 },
-];
-
+const mockData = [{ Mes: '2024-01', Sucursal: 'Centro', Concepto: 'Ingreso', Subconcepto: 'Efectivo', Monto: 100000 }];
 const root = createRoot(document.getElementById('root'));
 root.render(<App />);
 
