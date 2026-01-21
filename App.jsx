@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createRoot } from 'react-dom/client';
 import { 
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
@@ -10,6 +11,7 @@ import {
  * PAMPA FIAMBRES - DASHBOARD DE GESTIÓN ESTRATÉGICA
  * Configuración: Libro Diario (Mes, Sucursal, Concepto, Subconcepto, Monto)
  * Contraseña Maestra: Pampa2026
+ * Versión: Producción (Auto-Render)
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
@@ -70,7 +72,6 @@ const App = () => {
       setLastUpdate(new Date().toLocaleTimeString());
     } catch (err) {
       setError(err.message);
-      // Fallback a datos de ejemplo en caso de error de conexión para previsualización
       setData(mockData);
     } finally {
       setLoading(false);
@@ -97,13 +98,11 @@ const App = () => {
 
     const matches = (val, search) => val.toLowerCase().includes(search.toLowerCase());
 
-    // Agrupar por categorías de subconcepto
     const efectivo = filtered.filter(d => matches(d.Subconcepto, 'efectivo')).reduce((a, b) => a + b.Monto, 0);
     const posnet = filtered.filter(d => matches(d.Subconcepto, 'posnet')).reduce((a, b) => a + b.Monto, 0);
     const comisiones = filtered.filter(d => matches(d.Subconcepto, 'comision')).reduce((a, b) => a + b.Monto, 0);
     const cmv = filtered.filter(d => matches(d.Subconcepto, 'cmv')).reduce((a, b) => a + b.Monto, 0);
 
-    // Identificar gastos operativos (Egresos que no son CMV ni Comisiones)
     const egresosOperativos = filtered.filter(d => {
       const isEgreso = matches(d.Concepto, 'egreso') || matches(d.Concepto, 'gasto');
       const isDirect = matches(d.Subconcepto, 'cmv') || matches(d.Subconcepto, 'comision');
@@ -124,7 +123,6 @@ const App = () => {
 
   const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(val);
 
-  // Pantalla de Login
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
@@ -153,7 +151,6 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] pb-20 font-sans text-slate-900">
-      {/* Barra de Navegación */}
       <nav className="bg-white border-b border-slate-100 h-20 px-8 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-4">
           <div className="bg-amber-500 p-2 rounded-xl text-white font-black text-xl shadow-lg shadow-amber-500/20">P</div>
@@ -168,8 +165,6 @@ const App = () => {
       </nav>
 
       <main className="max-w-7xl mx-auto px-8 mt-10 space-y-10">
-        
-        {/* Filtros */}
         <div className="flex flex-wrap gap-4">
           <div className="bg-white px-5 py-3 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-3">
             <Store size={18} className="text-slate-300" />
@@ -185,7 +180,6 @@ const App = () => {
           </div>
         </div>
 
-        {/* Indicadores Principales */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <KPICard title="Ventas Netas" value={formatCurrency(stats.ventasNetas)} icon={TrendingUp} color="bg-blue-600" detail="Ingresos Reales" subtext={`Comisiones: ${formatCurrency(stats.comisiones)}`} />
           <KPICard title="EBITDA" value={formatCurrency(stats.ebitda)} icon={DollarSign} color="bg-emerald-600" detail="Caja Operativa" subtext="Utilidad Final" />
@@ -193,9 +187,7 @@ const App = () => {
           <KPICard title="Gastos Fijos" value={formatCurrency(stats.totalGastosFijos)} icon={FileText} color="bg-red-600" detail="Estructura" subtext="Costos Operativos" />
         </div>
 
-        {/* Gráficos de Análisis */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Evolución Temporal */}
           <div className="lg:col-span-2 bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
             <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-10">Evolución Mensual</h3>
             <ResponsiveContainer width="100%" height="80%">
@@ -216,7 +208,6 @@ const App = () => {
             </ResponsiveContainer>
           </div>
 
-          {/* Mix de Cobros */}
           <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
             <h3 className="font-black text-slate-800 mb-10 uppercase text-xs tracking-widest">Mix de Ventas</h3>
             <ResponsiveContainer width="100%" height="70%">
@@ -242,7 +233,7 @@ const App = () => {
   );
 };
 
-// Función para procesar datos del gráfico de evolución
+// --- DATOS MOCK Y HELPERS ---
 const getEvolution = (data) => {
   const months = [...new Set(data.map(d => d.Mes))].filter(Boolean).sort();
   const matches = (val, search) => val.toLowerCase().includes(search.toLowerCase());
@@ -267,5 +258,10 @@ const getEvolution = (data) => {
 const mockData = [
   { Mes: '2024-01', Sucursal: 'Centro', Concepto: 'Ingreso', Subconcepto: 'Efectivo', Monto: 150000 },
 ];
+
+// --- MOTOR DE ARRANQUE (FIX) ---
+// Esto es lo que faltaba: la orden de dibujar la aplicación en el navegador.
+const root = createRoot(document.getElementById('root'));
+root.render(<App />);
 
 export default App;
