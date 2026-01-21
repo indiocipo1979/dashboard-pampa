@@ -230,7 +230,7 @@ const App = () => {
       const cmv = sumByConcept('cmv') + sumByConcept('costo');
       const gastos = filtered.filter(r => {
         const con = r.Concepto.toLowerCase();
-        return (con.includes('gasto') || con.includes('egreso')) && !con.includes('cmv') && !con.includes('comision');
+        return (con.includes('gasto') || con.includes('egreso')) && !con.includes('cmv') && !con.includes('costo') && !con.includes('comision');
       }).reduce((acc, curr) => acc + curr.Monto, 0);
 
       const ebitda = (vBrutas - comis) - cmv - gastos;
@@ -308,7 +308,25 @@ const App = () => {
                 value={selectedMonth} 
                 onChange={(e) => setSelectedMonth(e.target.value)}
               >
-                {months.map(m => <option key={m} value={m}>{m}</option>)}
+                {months.map(m => {
+                  let label = m;
+                  if (m !== 'Acumulado') {
+                    try {
+                      const [year, month] = m.split('-');
+                      if (year && month) {
+                        // Fecha segura (día 10) para evitar problemas de zona horaria
+                        const date = new Date(parseInt(year), parseInt(month) - 1, 10);
+                        const monthName = date.toLocaleDateString('es-AR', { month: 'long' });
+                        label = `${monthName} ${year}`;
+                      }
+                    } catch (e) {}
+                  }
+                  return (
+                    <option key={m} value={m}>
+                      {label.charAt(0).toUpperCase() + label.slice(1)}
+                    </option>
+                  );
+                })}
               </select>
               <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={20} />
             </div>
