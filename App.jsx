@@ -1,21 +1,22 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
 import { 
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, ComposedChart, ReferenceLine
 } from 'recharts';
 import { 
-  LayoutDashboard, TrendingUp, DollarSign, Percent, Store, Calendar, RefreshCcw, LogOut, ChevronRight, FileText, ArrowRight, Wallet, AlertTriangle, CheckCircle, HelpCircle
+  LayoutDashboard, TrendingUp, DollarSign, Percent, Store, Calendar, RefreshCcw, LogOut, ChevronRight, FileText, ArrowRight, Wallet, AlertTriangle, CheckCircle, HelpCircle, Activity, Scale
 } from 'lucide-react';
 
 /**
- * PAMPA FIAMBRES - DASHBOARD DE GESTIÓN (MODO AUDITORÍA)
- * Versión: Debugging de Cálculos
+ * PAMPA FIAMBRES - DASHBOARD DE GESTIÓN ESTRATÉGICA
+ * Versión: Análisis Financiero, Punto de Equilibrio y Semáforos
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
+// Componente KPI Clásico
 const KPICard = ({ title, value, icon: Icon, color, detail, subtext }) => (
-  <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col justify-between transition-all hover:shadow-md">
+  <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col justify-between transition-all hover:shadow-md h-full">
     <div className="flex justify-between items-start mb-4">
       <div className={`p-3 rounded-2xl ${color} bg-opacity-10`}>
         <Icon className={`w-6 h-6 ${color.replace('bg-', 'text-')}`} />
@@ -33,6 +34,63 @@ const KPICard = ({ title, value, icon: Icon, color, detail, subtext }) => (
     </div>
   </div>
 );
+
+// Nuevo Componente: Semáforo de Gestión
+const TrafficLightCard = ({ title, value, threshold, type = 'higherIsBetter', suffix = '' }) => {
+  // Lógica del semáforo
+  let statusColor = 'bg-slate-100 text-slate-500';
+  let statusIcon = HelpCircle;
+  let statusText = 'Neutro';
+
+  const numValue = parseFloat(value);
+  
+  if (type === 'higherIsBetter') {
+    if (numValue >= threshold.green) {
+      statusColor = 'bg-emerald-100 text-emerald-700';
+      statusIcon = CheckCircle;
+      statusText = 'Saludable';
+    } else if (numValue >= threshold.yellow) {
+      statusColor = 'bg-amber-100 text-amber-700';
+      statusIcon = AlertTriangle;
+      statusText = 'Atención';
+    } else {
+      statusColor = 'bg-red-100 text-red-700';
+      statusIcon = AlertTriangle;
+      statusText = 'Crítico';
+    }
+  } else { // lowerIsBetter (ej: Gastos Fijos)
+    if (numValue <= threshold.green) {
+      statusColor = 'bg-emerald-100 text-emerald-700';
+      statusIcon = CheckCircle;
+      statusText = 'Óptimo';
+    } else if (numValue <= threshold.yellow) {
+      statusColor = 'bg-amber-100 text-amber-700';
+      statusIcon = AlertTriangle;
+      statusText = 'Cuidado';
+    } else {
+      statusColor = 'bg-red-100 text-red-700';
+      statusIcon = AlertTriangle;
+      statusText = 'Excesivo';
+    }
+  }
+
+  const Icon = statusIcon;
+
+  return (
+    <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
+      <div>
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{title}</p>
+        <div className="flex items-baseline gap-1">
+          <h3 className="text-xl font-black text-slate-800">{numValue}{suffix}</h3>
+        </div>
+      </div>
+      <div className={`px-4 py-2 rounded-xl flex items-center gap-2 ${statusColor}`}>
+        <Icon size={16} />
+        <span className="text-[10px] font-black uppercase tracking-wide">{statusText}</span>
+      </div>
+    </div>
+  );
+};
 
 const App = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -64,7 +122,6 @@ const App = () => {
       }
       const formatted = rawData.map(item => ({
         ...item,
-        // Forzamos valor positivo absoluto para evitar errores de signos en el Excel
         Monto: Math.abs(parseFloat(String(item.Monto || 0).replace(/[$.]/g, '').replace(',', '.')) || 0),
         Mes: String(item.Mes || '').trim(),
         Sucursal: String(item.Sucursal || '').trim(),
@@ -92,7 +149,7 @@ const App = () => {
     }
   };
 
-  // --- LÓGICA DE AUDITORÍA ---
+  // --- LÓGICA CENTRAL DE NEGOCIO ---
   const audit = useMemo(() => {
     const filtered = data.filter(d => {
       const b = selectedBranch === 'Todas' || d.Sucursal === selectedBranch;
@@ -100,31 +157,15 @@ const App = () => {
       return b && m;
     });
 
-    const buckets = {
-      ventas: [],
-      cmv: [],
-      gastos: [],
-      comisiones: [],
-      ignorados: []
-    };
+    const buckets = { ventas: [], cmv: [], gastos: [], comisiones: [], ignorados: [] };
 
     filtered.forEach(row => {
-      const sub = row.Subconcepto.toLowerCase();
       const con = row.Concepto.toLowerCase();
-      
-      if (sub.includes('efectivo') || sub.includes('posnet')) {
-        buckets.ventas.push(row);
-      } else if (sub.includes('cmv')) {
-        buckets.cmv.push(row);
-      } else if (sub.includes('comision')) {
-        buckets.comisiones.push(row);
-      } else if (con.includes('egreso') || con.includes('gasto')) {
-        // Si es egreso y no es lo anterior, es Gasto Fijo
-        buckets.gastos.push(row);
-      } else {
-        // Si no entra en nada (ej: Ingreso que no es efectivo/posnet)
-        buckets.ignorados.push(row);
-      }
+      if (con.includes('venta') || con.includes('ingreso')) buckets.ventas.push(row);
+      else if (con.includes('comision')) buckets.comisiones.push(row);
+      else if (con.includes('cmv') || con.includes('costo') || con.includes('mercaderia')) buckets.cmv.push(row);
+      else if (con.includes('gasto') || con.includes('fijo') || con.includes('estructura') || con.includes('egreso')) buckets.gastos.push(row);
+      else buckets.ignorados.push(row);
     });
 
     const sum = (arr) => arr.reduce((a, b) => a + b.Monto, 0);
@@ -134,21 +175,32 @@ const App = () => {
     const totalCmv = sum(buckets.cmv);
     const totalGastos = sum(buckets.gastos);
     
+    // Fórmulas de Negocio
     const ventasNetas = ventasBrutas - totalComis;
-    const ebitda = ventasNetas - totalCmv - totalGastos;
+    const margenBruto = ventasNetas - totalCmv; // Contribución Marginal en $
+    const ebitda = margenBruto - totalGastos;
+    
     const margenPct = ventasNetas > 0 ? (ebitda / ventasNetas) * 100 : 0;
+    
+    // Cálculo Punto de Equilibrio (Break Even Point)
+    // PE ($) = Costos Fijos / (Margen Contribución / Ventas Netas)
+    const ratioContribucion = ventasNetas > 0 ? (margenBruto / ventasNetas) : 0;
+    const puntoEquilibrio = ratioContribucion > 0 ? (totalGastos / ratioContribucion) : 0;
+
+    // Ratios para semáforos
+    const pesoGastosFijos = ventasNetas > 0 ? (totalGastos / ventasNetas) * 100 : 0;
 
     return { 
-      ventasNetas, ebitda, margenPct, totalGastos, 
-      buckets, ventasBrutas, totalCmv, totalComis,
-      efectivo: sum(buckets.ventas.filter(r => r.Subconcepto.toLowerCase().includes('efectivo'))),
-      posnet: sum(buckets.ventas.filter(r => r.Subconcepto.toLowerCase().includes('posnet')))
+      ventasNetas, ebitda, margenPct, totalGastos, margenBruto, puntoEquilibrio, pesoGastosFijos,
+      buckets, ventasBrutas, totalCmv, totalComis
     };
   }, [data, selectedBranch, selectedMonth]);
 
   const branches = ['Todas', ...new Set(data.map(d => d.Sucursal))].filter(Boolean);
   const months = ['Acumulado', ...new Set(data.map(d => d.Mes))].filter(Boolean).sort().reverse();
   const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(val);
+
+  const chartData = useMemo(() => processChartData(data), [data]);
 
   if (!isLoggedIn) {
     return (
@@ -186,67 +238,137 @@ const App = () => {
           </select>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <KPICard title="Ventas Brutas" value={formatCurrency(audit.ventasBrutas)} icon={TrendingUp} color="bg-blue-600" detail="Total Facturado" />
-          <KPICard title="Gastos Fijos" value={formatCurrency(audit.totalGastos)} icon={FileText} color="bg-red-600" detail="Operativos" />
-          <KPICard title="CMV" value={formatCurrency(audit.totalCmv)} icon={Store} color="bg-orange-500" detail="Costo Mercadería" />
+        {/* --- TARJETAS KPIs --- */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <KPICard title="Ventas Netas" value={formatCurrency(audit.ventasNetas)} icon={TrendingUp} color="bg-blue-600" detail="Ingresos Reales" />
+          <KPICard title="Punto de Equilibrio" value={formatCurrency(audit.puntoEquilibrio)} icon={Scale} color="bg-purple-500" detail="Meta Mensual" subtext="Para no perder dinero" />
+          <KPICard title="Margen Bruto" value={formatCurrency(audit.margenBruto)} icon={Wallet} color="bg-indigo-500" detail="Contribución" />
+          <KPICard title="Gastos Fijos" value={formatCurrency(audit.totalGastos)} icon={FileText} color="bg-red-600" detail="Estructura" />
           <KPICard title="EBITDA" value={formatCurrency(audit.ebitda)} icon={DollarSign} color="bg-emerald-600" detail="Resultado" />
         </div>
 
-        {/* --- SECCIÓN DE AUDITORÍA --- */}
+        {/* --- SEMÁFOROS DE GESTIÓN --- */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <TrafficLightCard 
+            title="Salud del Margen EBITDA" 
+            value={audit.margenPct.toFixed(1)} 
+            suffix="%" 
+            threshold={{ green: 15, yellow: 8 }} // Verde > 15%, Amarillo > 8%
+            type="higherIsBetter"
+          />
+          <TrafficLightCard 
+            title="Cobertura Punto de Equilibrio" 
+            value={audit.puntoEquilibrio > 0 ? ((audit.ventasNetas / audit.puntoEquilibrio) * 100).toFixed(0) : 0} 
+            suffix="%" 
+            threshold={{ green: 100, yellow: 90 }} // Verde si cubrimos el 100% de costos
+            type="higherIsBetter"
+          />
+          <TrafficLightCard 
+            title="Peso Gastos Fijos s/Venta" 
+            value={audit.pesoGastosFijos.toFixed(1)} 
+            suffix="%" 
+            threshold={{ green: 30, yellow: 40 }} // Verde si es bajo (<30%)
+            type="lowerIsBetter"
+          />
+        </div>
+
+        {/* --- GRÁFICOS ESTRATÉGICOS --- */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100">
-            <h3 className="font-black text-slate-800 mb-6 flex items-center gap-2">
-              <CheckCircle className="text-emerald-500" size={20}/> Qué estamos sumando
-            </h3>
-            <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-              <div className="mb-4">
-                <p className="text-xs font-bold text-slate-400 uppercase mb-2">Ventas ({audit.buckets.ventas.length} registros)</p>
-                {audit.buckets.ventas.map((r, i) => (
-                  <div key={i} className="flex justify-between text-xs border-b border-slate-50 py-1">
-                    <span>{r.Subconcepto} ({r.Mes})</span>
-                    <span className="font-bold text-blue-600">{formatCurrency(r.Monto)}</span>
-                  </div>
-                ))}
-              </div>
-              <div>
-                <p className="text-xs font-bold text-slate-400 uppercase mb-2">Gastos Fijos ({audit.buckets.gastos.length} registros)</p>
-                {audit.buckets.gastos.map((r, i) => (
-                  <div key={i} className="flex justify-between text-xs border-b border-slate-50 py-1">
-                    <span>{r.Subconcepto} ({r.Mes})</span>
-                    <span className="font-bold text-red-600">{formatCurrency(r.Monto)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+          
+          {/* Gráfico 1: Ventas vs Punto de Equilibrio */}
+          <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
+            <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-2">Tendencia & Equilibrio</h3>
+            <p className="text-xs text-slate-400 mb-6">Línea Punteada = Cuánto deberías haber vendido para cubrir costos.</p>
+            <ResponsiveContainer width="100%" height="80%">
+              <ComposedChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#cbd5e1'}} dy={10} />
+                <YAxis hide />
+                <Tooltip contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)'}} />
+                <Bar dataKey="ventas" name="Ventas Reales" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={20} />
+                <Line type="monotone" dataKey="equilibrio" name="Punto de Equilibrio" stroke="#ef4444" strokeWidth={2} strokeDasharray="5 5" dot={false} />
+                <Line type="monotone" dataKey="ebitda" name="EBITDA" stroke="#10b981" strokeWidth={3} />
+              </ComposedChart>
+            </ResponsiveContainer>
           </div>
 
-          <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 border-l-8 border-l-amber-400">
-            <h3 className="font-black text-slate-800 mb-6 flex items-center gap-2">
-              <HelpCircle className="text-amber-500" size={20}/> Lo que NO se sumó (Ignorados)
-            </h3>
-            <p className="text-sm text-slate-500 mb-4">Estos registros existen en el Excel pero el sistema no supo clasificarlos. Revisa si escribiste mal "Efectivo", "Egreso" o "CMV".</p>
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {audit.buckets.ignorados.length === 0 ? (
-                <p className="text-emerald-600 font-bold text-sm">¡Perfecto! Todo clasificado.</p>
-              ) : (
-                audit.buckets.ignorados.map((r, i) => (
-                  <div key={i} className="bg-amber-50 p-3 rounded-xl flex justify-between items-center">
-                    <div>
-                      <p className="text-xs font-bold text-slate-700">{r.Concepto} / {r.Subconcepto}</p>
-                      <p className="text-[10px] text-slate-400">{r.Mes} - {r.Sucursal}</p>
-                    </div>
-                    <span className="font-mono text-xs font-bold text-slate-600">{formatCurrency(r.Monto)}</span>
-                  </div>
-                ))
-              )}
-            </div>
+          {/* Gráfico 2: Estructura de Costos (En qué se va la plata) */}
+          <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
+            <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6">Composición del Negocio</h3>
+            <ResponsiveContainer width="100%" height="80%">
+              <AreaChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#cbd5e1'}} dy={10} />
+                <YAxis hide />
+                <Tooltip contentStyle={{borderRadius: '16px', border: 'none'}} />
+                <Area type="monotone" dataKey="cmv" name="Costo Mercadería" stackId="1" stroke="transparent" fill="#f97316" />
+                <Area type="monotone" dataKey="gastos" name="Gastos Fijos" stackId="1" stroke="transparent" fill="#ef4444" />
+                <Area type="monotone" dataKey="ganancia" name="Margen Neto (EBITDA)" stackId="1" stroke="transparent" fill="#10b981" />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
+
+        </div>
+
+        {/* --- AUDITORÍA (Mantenemos por seguridad) --- */}
+        <div className="bg-slate-100 p-6 rounded-[2rem] opacity-70">
+          <div className="flex justify-between items-center cursor-pointer">
+            <h3 className="font-black text-slate-500 uppercase text-xs">Auditoría de Datos (Debug)</h3>
+            <span className="text-[10px] bg-slate-200 px-2 py-1 rounded text-slate-500">{audit.buckets.ignorados.length} ignorados</span>
+          </div>
+          {audit.buckets.ignorados.length > 0 && (
+            <div className="mt-4 space-y-1">
+              {audit.buckets.ignorados.slice(0, 5).map((r, i) => (
+                <div key={i} className="text-[10px] text-red-500 font-mono">Ignorado: {r.Concepto} - {r.Subconcepto} ({r.Monto})</div>
+              ))}
+            </div>
+          )}
         </div>
 
       </main>
     </div>
   );
+};
+
+// --- PROCESAMIENTO DE GRÁFICOS ---
+const processChartData = (data) => {
+  const months = [...new Set(data.map(d => d.Mes))].filter(Boolean).sort();
+  
+  return months.map(m => {
+    const period = data.filter(d => d.Mes === m);
+    
+    // Sumatorias Mensuales
+    const sumByConcept = (term) => period.filter(r => r.Concepto.toLowerCase().includes(term)).reduce((a, b) => a + b.Monto, 0);
+    const sumSpecific = (term) => period.filter(r => r.Concepto.toLowerCase().includes(term)).reduce((a, b) => a + b.Monto, 0);
+
+    const ventasBrutas = sumByConcept('venta') + sumByConcept('ingreso');
+    const comisiones = sumByConcept('comision');
+    const cmv = sumByConcept('cmv') + sumByConcept('costo');
+    
+    // Gastos Fijos (Egreso que no es ni CMV ni Comisiones)
+    const gastos = period.filter(r => {
+      const con = r.Concepto.toLowerCase();
+      return (con.includes('gasto') || con.includes('egreso')) && !con.includes('cmv') && !con.includes('costo') && !con.includes('comision');
+    }).reduce((a, b) => a + b.Monto, 0);
+
+    const ventasNetas = ventasBrutas - comisiones;
+    const margenBruto = ventasNetas - cmv;
+    const ebitda = margenBruto - gastos;
+
+    // Cálculo Punto de Equilibrio Mensual
+    const ratio = ventasNetas > 0 ? (margenBruto / ventasNetas) : 0;
+    const equilibrio = ratio > 0 ? (gastos / ratio) : 0;
+
+    return { 
+      name: m, 
+      ventas: ventasNetas, 
+      ebitda: Math.max(0, ebitda), // Para visualizar mejor en stacked area
+      ganancia: ebitda, // Valor real para tooltip
+      cmv, 
+      gastos, 
+      equilibrio 
+    };
+  });
 };
 
 const mockData = [{ Mes: '2024-01', Sucursal: 'Centro', Concepto: 'Ingreso', Subconcepto: 'Efectivo', Monto: 100000 }];
