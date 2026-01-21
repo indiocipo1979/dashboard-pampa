@@ -4,12 +4,12 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, ComposedChart, ReferenceLine
 } from 'recharts';
 import { 
-  LayoutDashboard, TrendingUp, DollarSign, Percent, Store, Calendar, RefreshCcw, LogOut, ChevronRight, FileText, ArrowRight, Wallet, AlertTriangle, CheckCircle, HelpCircle, Activity, Scale
+  LayoutDashboard, TrendingUp, DollarSign, Percent, Store, Calendar, RefreshCcw, LogOut, ChevronRight, FileText, ArrowRight, Wallet, AlertTriangle, CheckCircle, HelpCircle, Activity, Scale, Filter
 } from 'lucide-react';
 
 /**
  * PAMPA FIAMBRES - DASHBOARD DE GESTIÓN ESTRATÉGICA
- * Versión: Análisis Financiero, Punto de Equilibrio y Semáforos
+ * Versión: Filtros Grandes + Gráfico Cascada (Waterfall)
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
@@ -35,9 +35,8 @@ const KPICard = ({ title, value, icon: Icon, color, detail, subtext }) => (
   </div>
 );
 
-// Nuevo Componente: Semáforo de Gestión
+// Componente Semáforo de Gestión
 const TrafficLightCard = ({ title, value, threshold, type = 'higherIsBetter', suffix = '' }) => {
-  // Lógica del semáforo
   let statusColor = 'bg-slate-100 text-slate-500';
   let statusIcon = HelpCircle;
   let statusText = 'Neutro';
@@ -58,7 +57,7 @@ const TrafficLightCard = ({ title, value, threshold, type = 'higherIsBetter', su
       statusIcon = AlertTriangle;
       statusText = 'Crítico';
     }
-  } else { // lowerIsBetter (ej: Gastos Fijos)
+  } else { 
     if (numValue <= threshold.green) {
       statusColor = 'bg-emerald-100 text-emerald-700';
       statusIcon = CheckCircle;
@@ -149,7 +148,7 @@ const App = () => {
     }
   };
 
-  // --- LÓGICA CENTRAL DE NEGOCIO ---
+  // --- LÓGICA DE NEGOCIO ---
   const audit = useMemo(() => {
     const filtered = data.filter(d => {
       const b = selectedBranch === 'Todas' || d.Sucursal === selectedBranch;
@@ -175,19 +174,14 @@ const App = () => {
     const totalCmv = sum(buckets.cmv);
     const totalGastos = sum(buckets.gastos);
     
-    // Fórmulas de Negocio
     const ventasNetas = ventasBrutas - totalComis;
-    const margenBruto = ventasNetas - totalCmv; // Contribución Marginal en $
+    const margenBruto = ventasNetas - totalCmv;
     const ebitda = margenBruto - totalGastos;
     
     const margenPct = ventasNetas > 0 ? (ebitda / ventasNetas) * 100 : 0;
     
-    // Cálculo Punto de Equilibrio (Break Even Point)
-    // PE ($) = Costos Fijos / (Margen Contribución / Ventas Netas)
     const ratioContribucion = ventasNetas > 0 ? (margenBruto / ventasNetas) : 0;
     const puntoEquilibrio = ratioContribucion > 0 ? (totalGastos / ratioContribucion) : 0;
-
-    // Ratios para semáforos
     const pesoGastosFijos = ventasNetas > 0 ? (totalGastos / ventasNetas) * 100 : 0;
 
     return { 
@@ -195,6 +189,17 @@ const App = () => {
       buckets, ventasBrutas, totalCmv, totalComis
     };
   }, [data, selectedBranch, selectedMonth]);
+
+  // Datos para el gráfico de cascada
+  const waterfallData = useMemo(() => {
+    if (!audit) return [];
+    return [
+      { name: '1. Ventas Netas', valor: audit.ventasNetas, base: 0, fill: '#3b82f6', label: 'Ingresos' },
+      { name: '2. Costo Mercadería', valor: audit.totalCmv, base: audit.margenBruto, fill: '#f97316', label: '- CMV' },
+      { name: '3. Gastos Fijos', valor: audit.totalGastos, base: audit.ebitda, fill: '#ef4444', label: '- Gastos' },
+      { name: '4. EBITDA', valor: audit.ebitda, base: 0, fill: '#10b981', label: '= Resultado' }
+    ];
+  }, [audit]);
 
   const branches = ['Todas', ...new Set(data.map(d => d.Sucursal))].filter(Boolean);
   const months = ['Acumulado', ...new Set(data.map(d => d.Mes))].filter(Boolean).sort().reverse();
@@ -229,13 +234,41 @@ const App = () => {
       {usingMockData && <div className="bg-red-50 p-4 text-center text-red-600 font-bold">⚠️ MODO PRUEBA (Error de conexión: {error})</div>}
 
       <main className="max-w-7xl mx-auto px-8 mt-10 space-y-10">
-        <div className="flex flex-wrap gap-4">
-          <select className="bg-white px-5 py-3 rounded-2xl shadow-sm font-bold text-xs uppercase" value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)}>
-            {branches.map(b => <option key={b} value={b}>{b}</option>)}
-          </select>
-          <select className="bg-white px-5 py-3 rounded-2xl shadow-sm font-bold text-xs uppercase" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
-            {months.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
+        
+        {/* --- FILTROS GRANDES --- */}
+        <div className="flex flex-wrap gap-6 bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 items-center">
+          <div className="flex items-center gap-2 text-slate-400">
+            <Filter size={24} />
+            <span className="font-black text-sm uppercase tracking-widest">Filtrar por:</span>
+          </div>
+          <div className="flex-1 min-w-[200px]">
+            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2 ml-2">Sucursal</label>
+            <div className="relative">
+              <Store className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+              <select 
+                className="w-full bg-slate-50 hover:bg-slate-100 transition-colors px-12 py-4 rounded-2xl font-black text-slate-700 uppercase outline-none cursor-pointer appearance-none border-2 border-transparent focus:border-amber-500"
+                value={selectedBranch} 
+                onChange={(e) => setSelectedBranch(e.target.value)}
+              >
+                {branches.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
+              <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={20} />
+            </div>
+          </div>
+          <div className="flex-1 min-w-[200px]">
+            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2 ml-2">Período</label>
+            <div className="relative">
+              <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+              <select 
+                className="w-full bg-slate-50 hover:bg-slate-100 transition-colors px-12 py-4 rounded-2xl font-black text-slate-700 uppercase outline-none cursor-pointer appearance-none border-2 border-transparent focus:border-amber-500"
+                value={selectedMonth} 
+                onChange={(e) => setSelectedMonth(e.target.value)}
+              >
+                {months.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+              <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={20} />
+            </div>
+          </div>
         </div>
 
         {/* --- TARJETAS KPIs --- */}
@@ -247,29 +280,11 @@ const App = () => {
           <KPICard title="EBITDA" value={formatCurrency(audit.ebitda)} icon={DollarSign} color="bg-emerald-600" detail="Resultado" />
         </div>
 
-        {/* --- SEMÁFOROS DE GESTIÓN --- */}
+        {/* --- SEMÁFOROS --- */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <TrafficLightCard 
-            title="Salud del Margen EBITDA" 
-            value={audit.margenPct.toFixed(1)} 
-            suffix="%" 
-            threshold={{ green: 15, yellow: 8 }} // Verde > 15%, Amarillo > 8%
-            type="higherIsBetter"
-          />
-          <TrafficLightCard 
-            title="Cobertura Punto de Equilibrio" 
-            value={audit.puntoEquilibrio > 0 ? ((audit.ventasNetas / audit.puntoEquilibrio) * 100).toFixed(0) : 0} 
-            suffix="%" 
-            threshold={{ green: 100, yellow: 90 }} // Verde si cubrimos el 100% de costos
-            type="higherIsBetter"
-          />
-          <TrafficLightCard 
-            title="Peso Gastos Fijos s/Venta" 
-            value={audit.pesoGastosFijos.toFixed(1)} 
-            suffix="%" 
-            threshold={{ green: 30, yellow: 40 }} // Verde si es bajo (<30%)
-            type="lowerIsBetter"
-          />
+          <TrafficLightCard title="Salud del Margen EBITDA" value={audit.margenPct.toFixed(1)} suffix="%" threshold={{ green: 15, yellow: 8 }} type="higherIsBetter" />
+          <TrafficLightCard title="Cobertura Punto de Equilibrio" value={audit.puntoEquilibrio > 0 ? ((audit.ventasNetas / audit.puntoEquilibrio) * 100).toFixed(0) : 0} suffix="%" threshold={{ green: 100, yellow: 90 }} type="higherIsBetter" />
+          <TrafficLightCard title="Peso Gastos Fijos s/Venta" value={audit.pesoGastosFijos.toFixed(1)} suffix="%" threshold={{ green: 30, yellow: 40 }} type="lowerIsBetter" />
         </div>
 
         {/* --- GRÁFICOS ESTRATÉGICOS --- */}
@@ -278,7 +293,7 @@ const App = () => {
           {/* Gráfico 1: Ventas vs Punto de Equilibrio */}
           <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
             <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-2">Tendencia & Equilibrio</h3>
-            <p className="text-xs text-slate-400 mb-6">Línea Punteada = Cuánto deberías haber vendido para cubrir costos.</p>
+            <p className="text-xs text-slate-400 mb-6">Línea Punteada = Meta de ventas para cubrir costos.</p>
             <ResponsiveContainer width="100%" height="80%">
               <ComposedChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -292,25 +307,44 @@ const App = () => {
             </ResponsiveContainer>
           </div>
 
-          {/* Gráfico 2: Estructura de Costos (En qué se va la plata) */}
+          {/* Gráfico 2: CASCADA DE RESULTADOS (Nuevo) */}
           <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
-            <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6">Composición del Negocio</h3>
+            <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6">Cascada de Resultados (P&L)</h3>
             <ResponsiveContainer width="100%" height="80%">
-              <AreaChart data={chartData}>
+              <BarChart data={waterfallData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#cbd5e1'}} dy={10} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} interval={0} />
                 <YAxis hide />
-                <Tooltip contentStyle={{borderRadius: '16px', border: 'none'}} />
-                <Area type="monotone" dataKey="cmv" name="Costo Mercadería" stackId="1" stroke="transparent" fill="#f97316" />
-                <Area type="monotone" dataKey="gastos" name="Gastos Fijos" stackId="1" stroke="transparent" fill="#ef4444" />
-                <Area type="monotone" dataKey="ganancia" name="Margen Neto (EBITDA)" stackId="1" stroke="transparent" fill="#10b981" />
-              </AreaChart>
+                <Tooltip 
+                  cursor={{fill: 'transparent'}}
+                  content={({ payload, label }) => {
+                    if (payload && payload.length > 0) {
+                      const data = payload[0].payload;
+                      return (
+                        <div className="bg-white p-4 rounded-2xl shadow-xl border border-slate-100">
+                          <p className="text-xs font-bold text-slate-400 mb-1">{data.label}</p>
+                          <p className="text-lg font-black text-slate-800">{formatCurrency(data.valor)}</p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                {/* Barra invisible de base */}
+                <Bar dataKey="base" stackId="a" fill="transparent" />
+                {/* Barra visible de valor */}
+                <Bar dataKey="valor" stackId="a" radius={[4, 4, 4, 4]}>
+                  {waterfallData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
           </div>
 
         </div>
 
-        {/* --- AUDITORÍA (Mantenemos por seguridad) --- */}
+        {/* --- AUDITORÍA --- */}
         <div className="bg-slate-100 p-6 rounded-[2rem] opacity-70">
           <div className="flex justify-between items-center cursor-pointer">
             <h3 className="font-black text-slate-500 uppercase text-xs">Auditoría de Datos (Debug)</h3>
@@ -333,19 +367,12 @@ const App = () => {
 // --- PROCESAMIENTO DE GRÁFICOS ---
 const processChartData = (data) => {
   const months = [...new Set(data.map(d => d.Mes))].filter(Boolean).sort();
-  
   return months.map(m => {
     const period = data.filter(d => d.Mes === m);
-    
-    // Sumatorias Mensuales
     const sumByConcept = (term) => period.filter(r => r.Concepto.toLowerCase().includes(term)).reduce((a, b) => a + b.Monto, 0);
-    const sumSpecific = (term) => period.filter(r => r.Concepto.toLowerCase().includes(term)).reduce((a, b) => a + b.Monto, 0);
-
     const ventasBrutas = sumByConcept('venta') + sumByConcept('ingreso');
     const comisiones = sumByConcept('comision');
     const cmv = sumByConcept('cmv') + sumByConcept('costo');
-    
-    // Gastos Fijos (Egreso que no es ni CMV ni Comisiones)
     const gastos = period.filter(r => {
       const con = r.Concepto.toLowerCase();
       return (con.includes('gasto') || con.includes('egreso')) && !con.includes('cmv') && !con.includes('costo') && !con.includes('comision');
@@ -354,20 +381,10 @@ const processChartData = (data) => {
     const ventasNetas = ventasBrutas - comisiones;
     const margenBruto = ventasNetas - cmv;
     const ebitda = margenBruto - gastos;
-
-    // Cálculo Punto de Equilibrio Mensual
     const ratio = ventasNetas > 0 ? (margenBruto / ventasNetas) : 0;
     const equilibrio = ratio > 0 ? (gastos / ratio) : 0;
 
-    return { 
-      name: m, 
-      ventas: ventasNetas, 
-      ebitda: Math.max(0, ebitda), // Para visualizar mejor en stacked area
-      ganancia: ebitda, // Valor real para tooltip
-      cmv, 
-      gastos, 
-      equilibrio 
-    };
+    return { name: m, ventas: ventasNetas, ebitda: Math.max(0, ebitda), ganancia: ebitda, cmv, gastos, equilibrio };
   });
 };
 
