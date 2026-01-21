@@ -4,15 +4,15 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, ComposedChart, ReferenceLine
 } from 'recharts';
 import { 
-  LayoutDashboard, TrendingUp, DollarSign, Percent, Store, Calendar, RefreshCcw, LogOut, ChevronRight, FileText, ArrowRight, Wallet, AlertTriangle, CheckCircle, HelpCircle, Activity, Scale, Filter
+  LayoutDashboard, TrendingUp, DollarSign, Percent, Store, Calendar, RefreshCcw, LogOut, ChevronRight, FileText, ArrowRight, Wallet, AlertTriangle, CheckCircle, HelpCircle, Activity, Scale, Filter, BarChart2, PieChart as PieIcon
 } from 'lucide-react';
 
 /**
- * PAMPA FIAMBRES - DASHBOARD DE GESTIÓN ESTRATÉGICA
- * Versión: Filtros Grandes + Gráfico Cascada (Waterfall)
+ * FIAMBRERIAS PAMPA - DASHBOARD DE GESTIÓN ESTRATÉGICA
+ * Versión: Gráficos Avanzados & Rebranding
  */
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
 
 // Componente KPI Clásico
 const KPICard = ({ title, value, icon: Icon, color, detail, subtext }) => (
@@ -179,7 +179,6 @@ const App = () => {
     const ebitda = margenBruto - totalGastos;
     
     const margenPct = ventasNetas > 0 ? (ebitda / ventasNetas) * 100 : 0;
-    
     const ratioContribucion = ventasNetas > 0 ? (margenBruto / ventasNetas) : 0;
     const puntoEquilibrio = ratioContribucion > 0 ? (totalGastos / ratioContribucion) : 0;
     const pesoGastosFijos = ventasNetas > 0 ? (totalGastos / ventasNetas) * 100 : 0;
@@ -190,16 +189,54 @@ const App = () => {
     };
   }, [data, selectedBranch, selectedMonth]);
 
-  // Datos para el gráfico de cascada
+  // Datos para Gráfico de Cascada
   const waterfallData = useMemo(() => {
     if (!audit) return [];
     return [
-      { name: '1. Ventas Netas', valor: audit.ventasNetas, base: 0, fill: '#3b82f6', label: 'Ingresos' },
-      { name: '2. Costo Mercadería', valor: audit.totalCmv, base: audit.margenBruto, fill: '#f97316', label: '- CMV' },
-      { name: '3. Gastos Fijos', valor: audit.totalGastos, base: audit.ebitda, fill: '#ef4444', label: '- Gastos' },
-      { name: '4. EBITDA', valor: audit.ebitda, base: 0, fill: '#10b981', label: '= Resultado' }
+      { name: 'Ingresos', valor: audit.ventasNetas, base: 0, fill: '#3b82f6', label: 'Ventas Netas' },
+      { name: 'Mercadería', valor: audit.totalCmv, base: audit.margenBruto, fill: '#f97316', label: '- Costo Mercadería' },
+      { name: 'Gastos', valor: audit.totalGastos, base: audit.ebitda, fill: '#ef4444', label: '- Gastos Fijos' },
+      { name: 'EBITDA', valor: audit.ebitda, base: 0, fill: '#10b981', label: '= Resultado' }
     ];
   }, [audit]);
+
+  // Datos para Gráfico "Top 5 Gastos"
+  const expensesData = useMemo(() => {
+    if (!audit) return [];
+    const grouped = audit.buckets.gastos.reduce((acc, curr) => {
+      const key = curr.Subconcepto || 'Varios';
+      acc[key] = (acc[key] || 0) + curr.Monto;
+      return acc;
+    }, {});
+    
+    return Object.entries(grouped)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5); // Solo Top 5
+  }, [audit]);
+
+  // Datos para Gráfico "Comparativa Sucursales"
+  const branchData = useMemo(() => {
+    if (selectedBranch !== 'Todas') return []; // Solo útil cuando vemos todas
+    const branches = [...new Set(data.map(d => d.Sucursal))].filter(Boolean);
+    
+    return branches.map(b => {
+      const filtered = data.filter(d => d.Sucursal === b && (selectedMonth === 'Acumulado' || d.Mes === selectedMonth));
+      
+      const sumByConcept = (term) => filtered.filter(r => r.Concepto.toLowerCase().includes(term)).reduce((acc, curr) => acc + curr.Monto, 0);
+      
+      const vBrutas = sumByConcept('venta') + sumByConcept('ingreso');
+      const comis = sumByConcept('comision');
+      const cmv = sumByConcept('cmv') + sumByConcept('costo');
+      const gastos = filtered.filter(r => {
+        const con = r.Concepto.toLowerCase();
+        return (con.includes('gasto') || con.includes('egreso')) && !con.includes('cmv') && !con.includes('comision');
+      }).reduce((acc, curr) => acc + curr.Monto, 0);
+
+      const ebitda = (vBrutas - comis) - cmv - gastos;
+      return { name: b, ventas: vBrutas - comis, ebitda };
+    }).sort((a, b) => b.ventas - a.ventas);
+  }, [data, selectedMonth, selectedBranch]);
 
   const branches = ['Todas', ...new Set(data.map(d => d.Sucursal))].filter(Boolean);
   const months = ['Acumulado', ...new Set(data.map(d => d.Mes))].filter(Boolean).sort().reverse();
@@ -211,10 +248,14 @@ const App = () => {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-white rounded-[2.5rem] shadow-2xl p-10 text-center border-b-8 border-amber-500">
-          <h2 className="text-3xl font-black text-slate-800 mb-2">PAMPA</h2>
+          <div className="bg-amber-500 w-20 h-20 rounded-3xl mx-auto mb-8 flex items-center justify-center text-white shadow-xl shadow-amber-500/20 rotate-3">
+            <LayoutDashboard size={40} className="-rotate-3" />
+          </div>
+          <h2 className="text-3xl font-black text-slate-800 mb-2 tracking-tighter uppercase">Fiambrerías Pampa</h2>
+          <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-10">Acceso Gerencial</p>
           <form onSubmit={handleLogin} className="space-y-4 mt-8">
             <input type="password" placeholder="Contraseña" className="w-full px-6 py-4 rounded-2xl border-2 text-center" onChange={(e) => setPassword(e.target.value)} />
-            <button className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black">INGRESAR</button>
+            <button className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black">INGRESAR AL SISTEMA</button>
           </form>
         </div>
       </div>
@@ -224,10 +265,13 @@ const App = () => {
   return (
     <div className="min-h-screen bg-[#FDFDFD] pb-20 font-sans text-slate-900">
       <nav className="bg-white border-b border-slate-100 h-20 px-8 flex items-center justify-between sticky top-0 z-50">
-        <h1 className="font-black text-lg">Pampa Dashboard</h1>
+        <div className="flex items-center gap-4">
+          <div className="bg-amber-500 p-2 rounded-xl text-white font-black text-xl shadow-lg shadow-amber-500/20">FP</div>
+          <h1 className="font-black text-lg tracking-tighter uppercase leading-none hidden sm:block">FIAMBRERIAS PAMPA</h1>
+        </div>
         <div className="flex gap-4">
-          <button onClick={fetchData} className="p-3 bg-slate-50 rounded-2xl"><RefreshCcw size={20}/></button>
-          <button onClick={() => setIsLoggedIn(false)} className="bg-slate-900 text-white px-6 py-2.5 rounded-2xl text-xs font-bold">SALIR</button>
+          <button onClick={fetchData} className="p-3 bg-slate-50 rounded-2xl hover:bg-slate-100 transition-colors"><RefreshCcw size={20}/></button>
+          <button onClick={() => setIsLoggedIn(false)} className="bg-slate-900 text-white px-6 py-2.5 rounded-2xl text-xs font-bold hover:bg-slate-800 transition-colors">SALIR</button>
         </div>
       </nav>
 
@@ -239,7 +283,7 @@ const App = () => {
         <div className="flex flex-wrap gap-6 bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 items-center">
           <div className="flex items-center gap-2 text-slate-400">
             <Filter size={24} />
-            <span className="font-black text-sm uppercase tracking-widest">Filtrar por:</span>
+            <span className="font-black text-sm uppercase tracking-widest">Filtrar:</span>
           </div>
           <div className="flex-1 min-w-[200px]">
             <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2 ml-2">Sucursal</label>
@@ -271,7 +315,7 @@ const App = () => {
           </div>
         </div>
 
-        {/* --- TARJETAS KPIs --- */}
+        {/* --- KPI CARDS --- */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <KPICard title="Ventas Netas" value={formatCurrency(audit.ventasNetas)} icon={TrendingUp} color="bg-blue-600" detail="Ingresos Reales" />
           <KPICard title="Punto de Equilibrio" value={formatCurrency(audit.puntoEquilibrio)} icon={Scale} color="bg-purple-500" detail="Meta Mensual" subtext="Para no perder dinero" />
@@ -287,12 +331,11 @@ const App = () => {
           <TrafficLightCard title="Peso Gastos Fijos s/Venta" value={audit.pesoGastosFijos.toFixed(1)} suffix="%" threshold={{ green: 30, yellow: 40 }} type="lowerIsBetter" />
         </div>
 
-        {/* --- GRÁFICOS ESTRATÉGICOS --- */}
+        {/* --- GRÁFICOS NIVEL 1: TENDENCIA & CASCADA --- */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           
-          {/* Gráfico 1: Ventas vs Punto de Equilibrio */}
           <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
-            <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-2">Tendencia & Equilibrio</h3>
+            <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-2 flex items-center gap-2"><Activity size={16}/> Tendencia & Equilibrio</h3>
             <p className="text-xs text-slate-400 mb-6">Línea Punteada = Meta de ventas para cubrir costos.</p>
             <ResponsiveContainer width="100%" height="80%">
               <ComposedChart data={chartData}>
@@ -307,9 +350,8 @@ const App = () => {
             </ResponsiveContainer>
           </div>
 
-          {/* Gráfico 2: CASCADA DE RESULTADOS (Nuevo) */}
           <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
-            <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6">Cascada de Resultados (P&L)</h3>
+            <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><BarChart2 size={16}/> Cascada de Resultados (P&L)</h3>
             <ResponsiveContainer width="100%" height="80%">
               <BarChart data={waterfallData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -330,16 +372,53 @@ const App = () => {
                     return null;
                   }}
                 />
-                {/* Barra invisible de base */}
                 <Bar dataKey="base" stackId="a" fill="transparent" />
-                {/* Barra visible de valor */}
-                <Bar dataKey="valor" stackId="a" radius={[4, 4, 4, 4]}>
+                <Bar dataKey="valor" stackId="a" radius={[6, 6, 6, 6]}>
                   {waterfallData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.fill} />
                   ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+          </div>
+
+        </div>
+
+        {/* --- GRÁFICOS NIVEL 2: GASTOS & SUCURSALES --- */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* Top Gastos */}
+          <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[400px]">
+            <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><ArrowRight size={16} className="rotate-45"/> Top 5 Gastos Fijos</h3>
+            <ResponsiveContainer width="100%" height="85%">
+              <BarChart layout="vertical" data={expensesData}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                <XAxis type="number" hide />
+                <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 10, fontWeight: 700, fill: '#64748b'}} />
+                <Tooltip cursor={{fill: '#f8fafc'}} formatter={(val) => formatCurrency(val)} contentStyle={{borderRadius: '12px'}} />
+                <Bar dataKey="value" fill="#ef4444" radius={[0, 4, 4, 0]} barSize={20} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Comparativa Sucursales */}
+          <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[400px] lg:col-span-2">
+            <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><Store size={16}/> Comparativa de Rendimiento</h3>
+            {branchData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="85%">
+                <BarChart data={branchData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 11, fontWeight: 900, fill: '#94a3b8'}} />
+                  <YAxis hide />
+                  <Tooltip cursor={{fill: '#f8fafc'}} formatter={(val) => formatCurrency(val)} contentStyle={{borderRadius: '16px'}} />
+                  <Legend />
+                  <Bar dataKey="ventas" name="Ventas" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="ebitda" name="EBITDA" fill="#10b981" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-slate-400 text-xs font-bold uppercase">Selecciona "Todas" las sucursales para comparar</div>
+            )}
           </div>
 
         </div>
