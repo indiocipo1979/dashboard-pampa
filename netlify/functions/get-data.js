@@ -9,7 +9,6 @@ exports.handler = async (event) => {
     }
 
     // 2. Limpieza de la clave privada (corrige saltos de línea y comillas extra)
-    // Esto es crucial para evitar el error 500/502 por formato de clave
     const privateKey = process.env.GOOGLE_PRIVATE_KEY
       .replace(/\\n/g, '\n')
       .replace(/"/g, '');
@@ -39,7 +38,7 @@ exports.handler = async (event) => {
 
     const rows = response.data.values;
     
-    // Si la hoja está vacía, devolvemos un array vacío pero con éxito (200)
+    // Si la hoja está vacía
     if (!rows || rows.length === 0) {
       return { 
         statusCode: 200, 
@@ -47,11 +46,19 @@ exports.handler = async (event) => {
       };
     }
 
-    // 6. Procesamiento de datos (Headers + Filas)
-    const headers = rows[0];
+    // 6. Procesamiento de datos con LIMPIEZA (TRIM)
+    // IMPORTANTE: Esto limpia los espacios invisibles que rompen los filtros
+    
+    // Limpiamos los encabezados (Fila 1)
+    const headers = rows[0].map(h => h ? h.trim() : `Columna_${Math.random()}`);
+    
     const data = rows.slice(1).map(row => {
       let obj = {};
-      headers.forEach((header, i) => obj[header] = row[i]);
+      headers.forEach((header, i) => {
+        const val = row[i];
+        // Si es texto, le quitamos espacios al inicio y final. Si es número, lo dejamos igual.
+        obj[header] = (typeof val === 'string') ? val.trim() : val;
+      });
       return obj;
     });
 
@@ -59,14 +66,13 @@ exports.handler = async (event) => {
       statusCode: 200, 
       headers: { 
         "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*" // Opcional, útil para desarrollo
+        "Access-Control-Allow-Origin": "*" 
       },
       body: JSON.stringify(data) 
     };
 
   } catch (error) {
     console.error("Server Error:", error);
-    // Devolvemos el error exacto para mostrarlo en el cartel rojo del Frontend
     return { 
       statusCode: 500, 
       body: JSON.stringify({ error: error.message }) 
