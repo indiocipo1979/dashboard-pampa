@@ -9,13 +9,45 @@ import {
 
 /**
  * FIAMBRERIAS PAMPA - DASHBOARD DE GESTIÓN ESTRATÉGICA
- * Versión: Filtros Claros + Gráficos Avanzados & Rebranding
+ * Versión: Corrección de Formato de Fechas (Safe Mode)
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
-
-// URL del Logo (Tomada de tu repositorio GitHub)
 const LOGO_URL = "https://raw.githubusercontent.com/indiocipo1979/dashboard-pampa/813294c2178aefbd20bf295d6968254b5d248790/logo_pampa.png";
+
+// --- FUNCIÓN SEGURA PARA FORMATEAR FECHAS ---
+// Convierte "2025-10" o "10/2025" a "Octubre 2025" sin romper la app
+const formatPeriod = (periodStr) => {
+  if (!periodStr || periodStr === 'Acumulado') return 'Acumulado';
+  
+  try {
+    // Normalizar separadores a guiones
+    const cleanStr = periodStr.replace(/\//g, '-'); 
+    const parts = cleanStr.split('-');
+    
+    if (parts.length !== 2) return periodStr; // Si no tiene 2 partes, devolver original
+
+    const p1 = parseInt(parts[0], 10);
+    const p2 = parseInt(parts[1], 10);
+    
+    if (isNaN(p1) || isNaN(p2)) return periodStr;
+
+    let year, month;
+    // Lógica para detectar cuál es el año (asumimos año > 1000)
+    if (p1 > 1000) { year = p1; month = p2; }
+    else if (p2 > 1000) { year = p2; month = p1; }
+    else return periodStr; // No se pudo determinar
+
+    // Crear fecha (Día 10 para evitar problemas de zona horaria)
+    const date = new Date(year, month - 1, 10);
+    const monthName = date.toLocaleDateString('es-ES', { month: 'long' });
+    
+    // Capitalizar primera letra: "octubre" -> "Octubre"
+    return `${monthName.charAt(0).toUpperCase() + monthName.slice(1)} ${year}`;
+  } catch (error) {
+    return periodStr; // Si falla algo, mostrar el texto original
+  }
+};
 
 // Componente KPI Clásico
 const KPICard = ({ title, value, icon: Icon, color, detail, subtext }) => (
@@ -320,34 +352,11 @@ const App = () => {
                   value={selectedMonth} 
                   onChange={(e) => setSelectedMonth(e.target.value)}
                 >
-                  {months.map(m => {
-                    let label = m;
-                    if (m !== 'Acumulado') {
-                      try {
-                        const normalized = m.replace(/\//g, '-'); 
-                        const parts = normalized.split('-');
-                        
-                        if (parts.length === 2) {
-                          const p1 = parseInt(parts[0]);
-                          const p2 = parseInt(parts[1]);
-                          
-                          let year, month;
-                          if (p1 > 12) { year = p1; month = p2; } else { month = p1; year = p2; }
-
-                          if (!isNaN(year) && !isNaN(month)) {
-                            const date = new Date(year, month - 1, 10);
-                            const monthName = date.toLocaleDateString('es-ES', { month: 'long' });
-                            label = `${monthName} ${year}`;
-                          }
-                        }
-                      } catch (e) {}
-                    }
-                    return (
-                      <option key={m} value={m}>
-                        {label.charAt(0).toUpperCase() + label.slice(1)}
-                      </option>
-                    );
-                  })}
+                  {months.map(m => (
+                    <option key={m} value={m}>
+                      {formatPeriod(m)}
+                    </option>
+                  ))}
                 </select>
                 <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={20} />
               </div>
