@@ -3,28 +3,24 @@ const { google } = require('googleapis');
 
 exports.handler = async (event) => {
   try {
-    // 1. VALIDACIÓN DE VARIABLES
-    if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL) throw new Error("Falta el EMAIL en Netlify");
-    if (!process.env.GOOGLE_PRIVATE_KEY) throw new Error("Falta la CLAVE PRIVADA en Netlify");
-    if (!process.env.GOOGLE_SHEET_ID) throw new Error("Falta el ID DE LA HOJA en Netlify");
+    // 1. Verificación de variables críticas
+    if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY || !process.env.GOOGLE_SHEET_ID) {
+      throw new Error("Faltan variables de entorno en Netlify (Email, Key o ID).");
+    }
 
-    // 2. LIMPIEZA AUTOMÁTICA DE LA CLAVE PRIVADA
-    // Esto arregla si la clave tiene comillas extra o saltos de línea mal formateados
+    // 2. Limpieza de la clave privada (corrige saltos de línea y comillas extra)
+    // Esto es crucial para evitar el error 500/502 por formato de clave
     const privateKey = process.env.GOOGLE_PRIVATE_KEY
-      .replace(/\\n/g, '\n')   // Convierte los \n literales en saltos reales
-      .replace(/"/g, '');      // Quita comillas dobles si se colaron al principio o final
+      .replace(/\\n/g, '\n')
+      .replace(/"/g, '');
 
-    // 3. LIMPIEZA AUTOMÁTICA DEL ID DE LA HOJA
-    // Si pegaste la URL entera (https://...), esto extrae solo el ID
+    // 3. Limpieza del ID de la hoja (extrae ID si se pegó la URL completa)
     let sheetId = process.env.GOOGLE_SHEET_ID;
     if (sheetId.includes('/d/')) {
       sheetId = sheetId.split('/d/')[1].split('/')[0];
     }
 
-    console.log("Intentando conectar con Sheet ID:", sheetId);
-    console.log("Usando Email:", process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL);
-
-    // 4. AUTENTICACIÓN
+    // 4. Autenticación con Google
     const auth = new GoogleAuth({
       credentials: {
         client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
@@ -35,17 +31,23 @@ exports.handler = async (event) => {
 
     const sheets = google.sheets({ version: 'v4', auth });
 
-    // 5. OBTENCIÓN DE DATOS
+    // 5. Obtención de datos
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: sheetId,
-      range: 'fact_ebitda!A:E',
+      range: 'fact_ebitda!A:E', // Lee las columnas A hasta E
     });
 
     const rows = response.data.values;
     
-    if (!rows || rows.length === 0) return { statusCode: 200, body: JSON.stringify([]) };
+    // Si la hoja está vacía, devolvemos un array vacío pero con éxito (200)
+    if (!rows || rows.length === 0) {
+      return { 
+        statusCode: 200, 
+        body: JSON.stringify([]) 
+      };
+    }
 
-    // Procesar datos
+    // 6. Procesamiento de datos (Headers + Filas)
     const headers = rows[0];
     const data = rows.slice(1).map(row => {
       let obj = {};
@@ -55,20 +57,19 @@ exports.handler = async (event) => {
 
     return { 
       statusCode: 200, 
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*" // Opcional, útil para desarrollo
+      },
       body: JSON.stringify(data) 
     };
 
   } catch (error) {
-    console.error("ERROR REAL DE GOOGLE:", error.message);
-    
-    // AQUÍ ESTÁ EL CAMBIO: Devolvemos el mensaje exacto de Google para que lo leas
+    console.error("Server Error:", error);
+    // Devolvemos el error exacto para mostrarlo en el cartel rojo del Frontend
     return { 
       statusCode: 500, 
-      body: JSON.stringify({ 
-        error: error.message, 
-        details: "Por favor copia este mensaje y pégalo en el chat." 
-      }) 
+      body: JSON.stringify({ error: error.message }) 
     };
   }
 };
