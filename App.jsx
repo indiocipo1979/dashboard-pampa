@@ -4,12 +4,12 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, ComposedChart, ReferenceLine
 } from 'recharts';
 import { 
-  LayoutDashboard, TrendingUp, DollarSign, Percent, Store, Calendar, RefreshCcw, LogOut, ChevronRight, FileText, ArrowRight, Wallet, AlertTriangle, CheckCircle, HelpCircle, Activity, Scale, Filter, BarChart2, PieChart as PieIcon
+  LayoutDashboard, TrendingUp, DollarSign, Percent, Store, Calendar, RefreshCcw, LogOut, ChevronRight, FileText, ArrowRight, Wallet, AlertTriangle, CheckCircle, HelpCircle, Activity, Scale, Filter, BarChart2, PieChart as PieIcon, Sliders
 } from 'lucide-react';
 
 /**
  * FIAMBRERIAS PAMPA - DASHBOARD DE GESTIÓN ESTRATÉGICA
- * Versión: Gráficos Avanzados & Rebranding con Logo
+ * Versión: Filtros Claros + Gráficos Avanzados & Rebranding
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
@@ -284,73 +284,73 @@ const App = () => {
 
       <main className="max-w-7xl mx-auto px-8 mt-10 space-y-10">
         
-        {/* --- FILTROS GRANDES --- */}
-        <div className="flex flex-wrap gap-6 bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 items-center">
-          <div className="flex items-center gap-2 text-slate-400">
-            <Filter size={24} />
-            <span className="font-black text-sm uppercase tracking-widest">Filtrar:</span>
-          </div>
-          <div className="flex-1 min-w-[200px]">
-            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2 ml-2">Sucursal</label>
-            <div className="relative">
-              <Store className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-              <select 
-                className="w-full bg-slate-50 hover:bg-slate-100 transition-colors px-12 py-4 rounded-2xl font-black text-slate-700 uppercase outline-none cursor-pointer appearance-none border-2 border-transparent focus:border-amber-500"
-                value={selectedBranch} 
-                onChange={(e) => setSelectedBranch(e.target.value)}
-              >
-                {branches.map(b => <option key={b} value={b}>{b}</option>)}
-              </select>
-              <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={20} />
+        {/* --- PANEL DE CONTROL DE FILTROS --- */}
+        <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+          <div className="flex items-center gap-3 mb-4 pl-2">
+            <div className="bg-amber-100 p-2 rounded-xl text-amber-600">
+              <Sliders size={20} />
             </div>
+            <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Panel de Control: Filtra tus datos</h3>
           </div>
-          <div className="flex-1 min-w-[200px]">
-            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2 ml-2">Período</label>
-            <div className="relative">
-              <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-              <select 
-                className="w-full bg-slate-50 hover:bg-slate-100 transition-colors px-12 py-4 rounded-2xl font-black text-slate-700 uppercase outline-none cursor-pointer appearance-none border-2 border-transparent focus:border-amber-500"
-                value={selectedMonth} 
-                onChange={(e) => setSelectedMonth(e.target.value)}
-              >
-                {months.map(m => {
-                  let label = m;
-                  if (m !== 'Acumulado') {
-                    try {
-                      // Normalizamos separadores reemplazando barras por guiones para manejar 2025/10
-                      const normalized = m.replace(/\//g, '-'); 
-                      const parts = normalized.split('-');
-                      
-                      if (parts.length === 2) {
-                        const p1 = parseInt(parts[0]);
-                        const p2 = parseInt(parts[1]);
-                        
-                        let year, month;
-                        // Heurística simple: Si el primer número es > 12, es el año (2025-10)
-                        if (p1 > 12) {
-                           year = p1;
-                           month = p2;
-                        } else {
-                           month = p1;
-                           year = p2;
-                        }
+          
+          <div className="flex flex-wrap gap-6">
+            {/* Filtro Sucursal */}
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-xs font-black text-slate-400 uppercase mb-2 ml-1">1. Selecciona Sucursal</label>
+              <div className="relative">
+                <Store className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                <select 
+                  className="w-full bg-slate-50 hover:bg-slate-100 transition-colors px-12 py-4 rounded-2xl font-black text-slate-700 uppercase outline-none cursor-pointer appearance-none border-2 border-transparent focus:border-amber-500"
+                  value={selectedBranch} 
+                  onChange={(e) => setSelectedBranch(e.target.value)}
+                >
+                  {branches.map(b => <option key={b} value={b}>{b}</option>)}
+                </select>
+                <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={20} />
+              </div>
+            </div>
 
-                        if (!isNaN(year) && !isNaN(month)) {
-                          const date = new Date(year, month - 1, 10);
-                          const monthName = date.toLocaleDateString('es-ES', { month: 'long' });
-                          label = `${monthName} ${year}`;
+            {/* Filtro Período */}
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-xs font-black text-slate-400 uppercase mb-2 ml-1">2. Selecciona Período</label>
+              <div className="relative">
+                <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                <select 
+                  className="w-full bg-slate-50 hover:bg-slate-100 transition-colors px-12 py-4 rounded-2xl font-black text-slate-700 uppercase outline-none cursor-pointer appearance-none border-2 border-transparent focus:border-amber-500"
+                  value={selectedMonth} 
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                >
+                  {months.map(m => {
+                    let label = m;
+                    if (m !== 'Acumulado') {
+                      try {
+                        const normalized = m.replace(/\//g, '-'); 
+                        const parts = normalized.split('-');
+                        
+                        if (parts.length === 2) {
+                          const p1 = parseInt(parts[0]);
+                          const p2 = parseInt(parts[1]);
+                          
+                          let year, month;
+                          if (p1 > 12) { year = p1; month = p2; } else { month = p1; year = p2; }
+
+                          if (!isNaN(year) && !isNaN(month)) {
+                            const date = new Date(year, month - 1, 10);
+                            const monthName = date.toLocaleDateString('es-ES', { month: 'long' });
+                            label = `${monthName} ${year}`;
+                          }
                         }
-                      }
-                    } catch (e) {}
-                  }
-                  return (
-                    <option key={m} value={m}>
-                      {label.charAt(0).toUpperCase() + label.slice(1)}
-                    </option>
-                  );
-                })}
-              </select>
-              <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={20} />
+                      } catch (e) {}
+                    }
+                    return (
+                      <option key={m} value={m}>
+                        {label.charAt(0).toUpperCase() + label.slice(1)}
+                      </option>
+                    );
+                  })}
+                </select>
+                <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={20} />
+              </div>
             </div>
           </div>
         </div>
