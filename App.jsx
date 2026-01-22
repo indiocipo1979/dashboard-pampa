@@ -317,12 +317,29 @@ const App = () => {
                   let label = m;
                   if (m !== 'Acumulado') {
                     try {
-                      const [year, month] = m.split('-');
-                      if (year && month) {
-                        // Fecha segura (día 10) para evitar problemas de zona horaria
-                        const date = new Date(parseInt(year), parseInt(month) - 1, 10);
-                        const monthName = date.toLocaleDateString('es-AR', { month: 'long' });
-                        label = `${monthName} ${year}`;
+                      // Normalizamos separadores reemplazando barras por guiones para manejar 2025/10
+                      const normalized = m.replace(/\//g, '-'); 
+                      const parts = normalized.split('-');
+                      
+                      if (parts.length === 2) {
+                        const p1 = parseInt(parts[0]);
+                        const p2 = parseInt(parts[1]);
+                        
+                        let year, month;
+                        // Heurística simple: Si el primer número es > 12, es el año (2025-10)
+                        if (p1 > 12) {
+                           year = p1;
+                           month = p2;
+                        } else {
+                           month = p1;
+                           year = p2;
+                        }
+
+                        if (!isNaN(year) && !isNaN(month)) {
+                          const date = new Date(year, month - 1, 10);
+                          const monthName = date.toLocaleDateString('es-ES', { month: 'long' });
+                          label = `${monthName} ${year}`;
+                        }
                       }
                     } catch (e) {}
                   }
