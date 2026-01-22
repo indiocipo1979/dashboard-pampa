@@ -9,10 +9,13 @@ import {
 
 /**
  * FIAMBRERIAS PAMPA - DASHBOARD DE GESTIÓN ESTRATÉGICA
- * Versión: Gráficos Avanzados & Rebranding
+ * Versión: Gráficos Avanzados & Rebranding con Logo
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
+
+// URL del Logo (Tomada de tu repositorio GitHub)
+const LOGO_URL = "https://raw.githubusercontent.com/indiocipo1979/dashboard-pampa/813294c2178aefbd20bf295d6968254b5d248790/logo_pampa.png";
 
 // Componente KPI Clásico
 const KPICard = ({ title, value, icon: Icon, color, detail, subtext }) => (
@@ -248,8 +251,8 @@ const App = () => {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-white rounded-[2.5rem] shadow-2xl p-10 text-center border-b-8 border-amber-500">
-          <div className="bg-amber-500 w-20 h-20 rounded-3xl mx-auto mb-8 flex items-center justify-center text-white shadow-xl shadow-amber-500/20 rotate-3">
-            <LayoutDashboard size={40} className="-rotate-3" />
+          <div className="flex justify-center mb-8">
+            <img src={LOGO_URL} alt="Logo Pampa" className="h-32 object-contain drop-shadow-xl" />
           </div>
           <h2 className="text-3xl font-black text-slate-800 mb-2 tracking-tighter uppercase">Fiambrerías Pampa</h2>
           <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-10">Acceso Gerencial</p>
@@ -266,7 +269,9 @@ const App = () => {
     <div className="min-h-screen bg-[#FDFDFD] pb-20 font-sans text-slate-900">
       <nav className="bg-white border-b border-slate-100 h-20 px-8 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-4">
-          <div className="bg-amber-500 p-2 rounded-xl text-white font-black text-xl shadow-lg shadow-amber-500/20">FP</div>
+          <div className="h-12 w-12 rounded-xl bg-white shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden">
+            <img src={LOGO_URL} alt="Logo" className="h-full w-full object-contain" />
+          </div>
           <h1 className="font-black text-lg tracking-tighter uppercase leading-none hidden sm:block">FIAMBRERIAS PAMPA</h1>
         </div>
         <div className="flex gap-4">
