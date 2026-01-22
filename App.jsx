@@ -9,44 +9,30 @@ import {
 
 /**
  * FIAMBRERIAS PAMPA - DASHBOARD DE GESTIÓN ESTRATÉGICA
- * Versión: Corrección de Formato de Fechas (Safe Mode)
+ * Versión: Producción Robusta (Con Reintentos Automáticos)
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
 const LOGO_URL = "https://raw.githubusercontent.com/indiocipo1979/dashboard-pampa/813294c2178aefbd20bf295d6968254b5d248790/logo_pampa.png";
 
 // --- FUNCIÓN SEGURA PARA FORMATEAR FECHAS ---
-// Convierte "2025-10" o "10/2025" a "Octubre 2025" sin romper la app
 const formatPeriod = (periodStr) => {
   if (!periodStr || periodStr === 'Acumulado') return 'Acumulado';
-  
   try {
-    // Normalizar separadores a guiones
     const cleanStr = periodStr.replace(/\//g, '-'); 
     const parts = cleanStr.split('-');
-    
-    if (parts.length !== 2) return periodStr; // Si no tiene 2 partes, devolver original
-
+    if (parts.length !== 2) return periodStr;
     const p1 = parseInt(parts[0], 10);
     const p2 = parseInt(parts[1], 10);
-    
     if (isNaN(p1) || isNaN(p2)) return periodStr;
-
     let year, month;
-    // Lógica para detectar cuál es el año (asumimos año > 1000)
     if (p1 > 1000) { year = p1; month = p2; }
     else if (p2 > 1000) { year = p2; month = p1; }
-    else return periodStr; // No se pudo determinar
-
-    // Crear fecha (Día 10 para evitar problemas de zona horaria)
+    else return periodStr;
     const date = new Date(year, month - 1, 10);
     const monthName = date.toLocaleDateString('es-ES', { month: 'long' });
-    
-    // Capitalizar primera letra: "octubre" -> "Octubre"
     return `${monthName.charAt(0).toUpperCase() + monthName.slice(1)} ${year}`;
-  } catch (error) {
-    return periodStr; // Si falla algo, mostrar el texto original
-  }
+  } catch (error) { return periodStr; }
 };
 
 // Componente KPI Clásico
@@ -56,11 +42,7 @@ const KPICard = ({ title, value, icon: Icon, color, detail, subtext }) => (
       <div className={`p-3 rounded-2xl ${color} bg-opacity-10`}>
         <Icon className={`w-6 h-6 ${color.replace('bg-', 'text-')}`} />
       </div>
-      {detail && (
-        <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 uppercase tracking-tighter">
-          {detail}
-        </span>
-      )}
+      {detail && <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 uppercase tracking-tighter">{detail}</span>}
     </div>
     <div>
       <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">{title}</p>
@@ -75,41 +57,18 @@ const TrafficLightCard = ({ title, value, threshold, type = 'higherIsBetter', su
   let statusColor = 'bg-slate-100 text-slate-500';
   let statusIcon = HelpCircle;
   let statusText = 'Neutro';
-
   const numValue = parseFloat(value);
   
   if (type === 'higherIsBetter') {
-    if (numValue >= threshold.green) {
-      statusColor = 'bg-emerald-100 text-emerald-700';
-      statusIcon = CheckCircle;
-      statusText = 'Saludable';
-    } else if (numValue >= threshold.yellow) {
-      statusColor = 'bg-amber-100 text-amber-700';
-      statusIcon = AlertTriangle;
-      statusText = 'Atención';
-    } else {
-      statusColor = 'bg-red-100 text-red-700';
-      statusIcon = AlertTriangle;
-      statusText = 'Crítico';
-    }
+    if (numValue >= threshold.green) { statusColor = 'bg-emerald-100 text-emerald-700'; statusIcon = CheckCircle; statusText = 'Saludable'; }
+    else if (numValue >= threshold.yellow) { statusColor = 'bg-amber-100 text-amber-700'; statusIcon = AlertTriangle; statusText = 'Atención'; }
+    else { statusColor = 'bg-red-100 text-red-700'; statusIcon = AlertTriangle; statusText = 'Crítico'; }
   } else { 
-    if (numValue <= threshold.green) {
-      statusColor = 'bg-emerald-100 text-emerald-700';
-      statusIcon = CheckCircle;
-      statusText = 'Óptimo';
-    } else if (numValue <= threshold.yellow) {
-      statusColor = 'bg-amber-100 text-amber-700';
-      statusIcon = AlertTriangle;
-      statusText = 'Cuidado';
-    } else {
-      statusColor = 'bg-red-100 text-red-700';
-      statusIcon = AlertTriangle;
-      statusText = 'Excesivo';
-    }
+    if (numValue <= threshold.green) { statusColor = 'bg-emerald-100 text-emerald-700'; statusIcon = CheckCircle; statusText = 'Óptimo'; }
+    else if (numValue <= threshold.yellow) { statusColor = 'bg-amber-100 text-amber-700'; statusIcon = AlertTriangle; statusText = 'Cuidado'; }
+    else { statusColor = 'bg-red-100 text-red-700'; statusIcon = AlertTriangle; statusText = 'Excesivo'; }
   }
-
   const Icon = statusIcon;
-
   return (
     <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
       <div>
@@ -133,20 +92,31 @@ const App = () => {
   const [data, setData] = useState([]);
   const [error, setError] = useState(null);
   const [usingMockData, setUsingMockData] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   
   const [selectedBranch, setSelectedBranch] = useState('Todas');
   const [selectedMonth, setSelectedMonth] = useState('Acumulado');
 
-  const fetchData = async () => {
+  const fetchData = async (isRetry = false) => {
     setLoading(true);
-    setError(null);
+    if (!isRetry) setError(null);
     setUsingMockData(false);
+    
     try {
       const res = await fetch('/.netlify/functions/get-data');
+      
+      // Manejo de errores 500/502 con reintentos
       if (!res.ok) {
+        if (res.status >= 500 && retryCount < 3) {
+          console.log(`Error del servidor ${res.status}. Reintentando (${retryCount + 1}/3)...`);
+          setRetryCount(prev => prev + 1);
+          setTimeout(() => fetchData(true), 2000); // Reintentar en 2 segundos
+          return;
+        }
         const errorText = await res.text();
         throw new Error(`Error del servidor (${res.status}): ${errorText}`);
       }
+
       const rawData = await res.json();
       if (!rawData || rawData.length === 0) {
         setError("Hoja vacía o sin datos.");
@@ -154,6 +124,10 @@ const App = () => {
         setData(mockData);
         return;
       }
+      
+      // Éxito: Reiniciar contador de reintentos
+      setRetryCount(0);
+      
       const formatted = rawData.map(item => ({
         ...item,
         Monto: Math.abs(parseFloat(String(item.Monto || 0).replace(/[$.]/g, '').replace(',', '.')) || 0),
@@ -165,11 +139,14 @@ const App = () => {
       setData(formatted);
     } catch (err) {
       console.error("Error fetching data:", err);
-      setError(`Fallo de conexión: ${err.message}`);
-      setUsingMockData(true);
-      setData(mockData);
+      // Si fallaron todos los reintentos, mostrar error
+      if (retryCount >= 3 || !err.message.includes('502')) {
+        setError(`Fallo de conexión: ${err.message}`);
+        setUsingMockData(true);
+        setData(mockData);
+      }
     } finally {
-      setLoading(false);
+      if (retryCount >= 3 || !error) setLoading(false);
     }
   };
 
@@ -224,7 +201,6 @@ const App = () => {
     };
   }, [data, selectedBranch, selectedMonth]);
 
-  // Datos para Gráfico de Cascada
   const waterfallData = useMemo(() => {
     if (!audit) return [];
     return [
@@ -235,7 +211,6 @@ const App = () => {
     ];
   }, [audit]);
 
-  // Datos para Gráfico "Top 5 Gastos"
   const expensesData = useMemo(() => {
     if (!audit) return [];
     const grouped = audit.buckets.gastos.reduce((acc, curr) => {
@@ -243,23 +218,18 @@ const App = () => {
       acc[key] = (acc[key] || 0) + curr.Monto;
       return acc;
     }, {});
-    
     return Object.entries(grouped)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
-      .slice(0, 5); // Solo Top 5
+      .slice(0, 5); 
   }, [audit]);
 
-  // Datos para Gráfico "Comparativa Sucursales"
   const branchData = useMemo(() => {
-    if (selectedBranch !== 'Todas') return []; // Solo útil cuando vemos todas
+    if (selectedBranch !== 'Todas') return []; 
     const branches = [...new Set(data.map(d => d.Sucursal))].filter(Boolean);
-    
     return branches.map(b => {
       const filtered = data.filter(d => d.Sucursal === b && (selectedMonth === 'Acumulado' || d.Mes === selectedMonth));
-      
       const sumByConcept = (term) => filtered.filter(r => r.Concepto.toLowerCase().includes(term)).reduce((acc, curr) => acc + curr.Monto, 0);
-      
       const vBrutas = sumByConcept('venta') + sumByConcept('ingreso');
       const comis = sumByConcept('comision');
       const cmv = sumByConcept('cmv') + sumByConcept('costo');
@@ -267,7 +237,6 @@ const App = () => {
         const con = r.Concepto.toLowerCase();
         return (con.includes('gasto') || con.includes('egreso')) && !con.includes('cmv') && !con.includes('costo') && !con.includes('comision');
       }).reduce((acc, curr) => acc + curr.Monto, 0);
-
       const ebitda = (vBrutas - comis) - cmv - gastos;
       return { name: b, ventas: vBrutas - comis, ebitda };
     }).sort((a, b) => b.ventas - a.ventas);
@@ -276,7 +245,6 @@ const App = () => {
   const branches = ['Todas', ...new Set(data.map(d => d.Sucursal))].filter(Boolean);
   const months = ['Acumulado', ...new Set(data.map(d => d.Mes))].filter(Boolean).sort().reverse();
   const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(val);
-
   const chartData = useMemo(() => processChartData(data), [data]);
 
   if (!isLoggedIn) {
@@ -307,12 +275,22 @@ const App = () => {
           <h1 className="font-black text-lg tracking-tighter uppercase leading-none hidden sm:block">FIAMBRERIAS PAMPA</h1>
         </div>
         <div className="flex gap-4">
-          <button onClick={fetchData} className="p-3 bg-slate-50 rounded-2xl hover:bg-slate-100 transition-colors"><RefreshCcw size={20}/></button>
+          <button onClick={() => fetchData()} className="p-3 bg-slate-50 rounded-2xl hover:bg-slate-100 transition-colors"><RefreshCcw size={20}/></button>
           <button onClick={() => setIsLoggedIn(false)} className="bg-slate-900 text-white px-6 py-2.5 rounded-2xl text-xs font-bold hover:bg-slate-800 transition-colors">SALIR</button>
         </div>
       </nav>
 
-      {usingMockData && <div className="bg-red-50 p-4 text-center text-red-600 font-bold">⚠️ MODO PRUEBA (Error de conexión: {error})</div>}
+      {usingMockData && (
+        <div className="bg-red-50 p-4 text-center border-b border-red-100">
+          <div className="flex justify-center items-center gap-2 text-red-600 font-bold text-sm">
+            <AlertTriangle size={18} />
+            <span>⚠️ ERROR DE CONEXIÓN: {error}</span>
+          </div>
+          <button onClick={() => fetchData()} className="mt-2 text-xs bg-red-100 text-red-700 px-3 py-1 rounded-lg hover:bg-red-200 transition-colors">
+            Reintentar Conexión
+          </button>
+        </div>
+      )}
 
       <main className="max-w-7xl mx-auto px-8 mt-10 space-y-10">
         
@@ -324,39 +302,23 @@ const App = () => {
             </div>
             <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Panel de Control: Filtra tus datos</h3>
           </div>
-          
           <div className="flex flex-wrap gap-6">
-            {/* Filtro Sucursal */}
             <div className="flex-1 min-w-[200px]">
               <label className="block text-xs font-black text-slate-400 uppercase mb-2 ml-1">1. Selecciona Sucursal</label>
               <div className="relative">
                 <Store className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                <select 
-                  className="w-full bg-slate-50 hover:bg-slate-100 transition-colors px-12 py-4 rounded-2xl font-black text-slate-700 uppercase outline-none cursor-pointer appearance-none border-2 border-transparent focus:border-amber-500"
-                  value={selectedBranch} 
-                  onChange={(e) => setSelectedBranch(e.target.value)}
-                >
+                <select className="w-full bg-slate-50 hover:bg-slate-100 transition-colors px-12 py-4 rounded-2xl font-black text-slate-700 uppercase outline-none cursor-pointer appearance-none border-2 border-transparent focus:border-amber-500" value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)}>
                   {branches.map(b => <option key={b} value={b}>{b}</option>)}
                 </select>
                 <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={20} />
               </div>
             </div>
-
-            {/* Filtro Período */}
             <div className="flex-1 min-w-[200px]">
               <label className="block text-xs font-black text-slate-400 uppercase mb-2 ml-1">2. Selecciona Período</label>
               <div className="relative">
                 <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                <select 
-                  className="w-full bg-slate-50 hover:bg-slate-100 transition-colors px-12 py-4 rounded-2xl font-black text-slate-700 uppercase outline-none cursor-pointer appearance-none border-2 border-transparent focus:border-amber-500"
-                  value={selectedMonth} 
-                  onChange={(e) => setSelectedMonth(e.target.value)}
-                >
-                  {months.map(m => (
-                    <option key={m} value={m}>
-                      {formatPeriod(m)}
-                    </option>
-                  ))}
+                <select className="w-full bg-slate-50 hover:bg-slate-100 transition-colors px-12 py-4 rounded-2xl font-black text-slate-700 uppercase outline-none cursor-pointer appearance-none border-2 border-transparent focus:border-amber-500" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
+                  {months.map(m => (<option key={m} value={m}>{formatPeriod(m)}</option>))}
                 </select>
                 <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={20} />
               </div>
@@ -380,12 +342,10 @@ const App = () => {
           <TrafficLightCard title="Peso Gastos Fijos s/Venta" value={audit.pesoGastosFijos.toFixed(1)} suffix="%" threshold={{ green: 30, yellow: 40 }} type="lowerIsBetter" />
         </div>
 
-        {/* --- GRÁFICOS NIVEL 1: TENDENCIA & CASCADA --- */}
+        {/* --- GRÁFICOS NIVEL 1 --- */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          
           <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
             <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-2 flex items-center gap-2"><Activity size={16}/> Tendencia & Equilibrio</h3>
-            <p className="text-xs text-slate-400 mb-6">Línea Punteada = Meta de ventas para cubrir costos.</p>
             <ResponsiveContainer width="100%" height="80%">
               <ComposedChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -398,7 +358,6 @@ const App = () => {
               </ComposedChart>
             </ResponsiveContainer>
           </div>
-
           <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
             <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><BarChart2 size={16}/> Cascada de Resultados (P&L)</h3>
             <ResponsiveContainer width="100%" height="80%">
@@ -406,37 +365,18 @@ const App = () => {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} interval={0} />
                 <YAxis hide />
-                <Tooltip 
-                  cursor={{fill: 'transparent'}}
-                  content={({ payload, label }) => {
-                    if (payload && payload.length > 0) {
-                      const data = payload[0].payload;
-                      return (
-                        <div className="bg-white p-4 rounded-2xl shadow-xl border border-slate-100">
-                          <p className="text-xs font-bold text-slate-400 mb-1">{data.label}</p>
-                          <p className="text-lg font-black text-slate-800">{formatCurrency(data.valor)}</p>
-                        </div>
-                      );
-                    }
-                    return null;
-                  }}
-                />
+                <Tooltip cursor={{fill: 'transparent'}} content={({ payload, label }) => { if (payload && payload.length > 0) { const data = payload[0].payload; return ( <div className="bg-white p-4 rounded-2xl shadow-xl border border-slate-100"> <p className="text-xs font-bold text-slate-400 mb-1">{data.label}</p> <p className="text-lg font-black text-slate-800">{formatCurrency(data.valor)}</p> </div> ); } return null; }} />
                 <Bar dataKey="base" stackId="a" fill="transparent" />
                 <Bar dataKey="valor" stackId="a" radius={[6, 6, 6, 6]}>
-                  {waterfallData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.fill} />
-                  ))}
+                  {waterfallData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.fill} />))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
-
         </div>
 
-        {/* --- GRÁFICOS NIVEL 2: GASTOS & SUCURSALES --- */}
+        {/* --- GRÁFICOS NIVEL 2 --- */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
-          {/* Top Gastos */}
           <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[400px]">
             <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><ArrowRight size={16} className="rotate-45"/> Top 5 Gastos Fijos</h3>
             <ResponsiveContainer width="100%" height="85%">
@@ -449,8 +389,6 @@ const App = () => {
               </BarChart>
             </ResponsiveContainer>
           </div>
-
-          {/* Comparativa Sucursales */}
           <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[400px] lg:col-span-2">
             <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><Store size={16}/> Comparativa de Rendimiento</h3>
             {branchData.length > 0 ? (
@@ -469,7 +407,6 @@ const App = () => {
               <div className="h-full flex items-center justify-center text-slate-400 text-xs font-bold uppercase">Selecciona "Todas" las sucursales para comparar</div>
             )}
           </div>
-
         </div>
 
         {/* --- AUDITORÍA --- */}
@@ -486,13 +423,11 @@ const App = () => {
             </div>
           )}
         </div>
-
       </main>
     </div>
   );
 };
 
-// --- PROCESAMIENTO DE GRÁFICOS ---
 const processChartData = (data) => {
   const months = [...new Set(data.map(d => d.Mes))].filter(Boolean).sort();
   return months.map(m => {
@@ -505,13 +440,11 @@ const processChartData = (data) => {
       const con = r.Concepto.toLowerCase();
       return (con.includes('gasto') || con.includes('egreso')) && !con.includes('cmv') && !con.includes('costo') && !con.includes('comision');
     }).reduce((a, b) => a + b.Monto, 0);
-
     const ventasNetas = ventasBrutas - comisiones;
     const margenBruto = ventasNetas - cmv;
     const ebitda = margenBruto - gastos;
     const ratio = ventasNetas > 0 ? (margenBruto / ventasNetas) : 0;
     const equilibrio = ratio > 0 ? (gastos / ratio) : 0;
-
     return { name: m, ventas: ventasNetas, ebitda: Math.max(0, ebitda), ganancia: ebitda, cmv, gastos, equilibrio };
   });
 };
