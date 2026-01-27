@@ -9,7 +9,7 @@ import {
 
 /**
  * FIAMBRERIAS PAMPA - DASHBOARD DE GESTIÓN ESTRATÉGICA
- * Versión: Producción Robusta (Con Reintentos Automáticos)
+ * Versión: Gráfico Cascada Corregido (5 Pasos)
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
@@ -104,19 +104,16 @@ const App = () => {
     
     try {
       const res = await fetch('/.netlify/functions/get-data');
-      
-      // Manejo de errores 500/502 con reintentos
       if (!res.ok) {
         if (res.status >= 500 && retryCount < 3) {
           console.log(`Error del servidor ${res.status}. Reintentando (${retryCount + 1}/3)...`);
           setRetryCount(prev => prev + 1);
-          setTimeout(() => fetchData(true), 2000); // Reintentar en 2 segundos
+          setTimeout(() => fetchData(true), 2000);
           return;
         }
         const errorText = await res.text();
         throw new Error(`Error del servidor (${res.status}): ${errorText}`);
       }
-
       const rawData = await res.json();
       if (!rawData || rawData.length === 0) {
         setError("Hoja vacía o sin datos.");
@@ -124,10 +121,7 @@ const App = () => {
         setData(mockData);
         return;
       }
-      
-      // Éxito: Reiniciar contador de reintentos
       setRetryCount(0);
-      
       const formatted = rawData.map(item => ({
         ...item,
         Monto: Math.abs(parseFloat(String(item.Monto || 0).replace(/[$.]/g, '').replace(',', '.')) || 0),
@@ -139,7 +133,6 @@ const App = () => {
       setData(formatted);
     } catch (err) {
       console.error("Error fetching data:", err);
-      // Si fallaron todos los reintentos, mostrar error
       if (retryCount >= 3 || !err.message.includes('502')) {
         setError(`Fallo de conexión: ${err.message}`);
         setUsingMockData(true);
@@ -160,7 +153,6 @@ const App = () => {
     }
   };
 
-  // --- LÓGICA DE NEGOCIO ---
   const audit = useMemo(() => {
     const filtered = data.filter(d => {
       const b = selectedBranch === 'Todas' || d.Sucursal === selectedBranch;
@@ -201,13 +193,15 @@ const App = () => {
     };
   }, [data, selectedBranch, selectedMonth]);
 
+  // --- DATOS CORREGIDOS DEL GRÁFICO CASCADA (5 Pasos) ---
   const waterfallData = useMemo(() => {
     if (!audit) return [];
     return [
-      { name: 'Ingresos', valor: audit.ventasNetas, base: 0, fill: '#3b82f6', label: 'Ventas Netas' },
-      { name: 'Mercadería', valor: audit.totalCmv, base: audit.margenBruto, fill: '#f97316', label: '- Costo Mercadería' },
-      { name: 'Gastos', valor: audit.totalGastos, base: audit.ebitda, fill: '#ef4444', label: '- Gastos Fijos' },
-      { name: 'EBITDA', valor: audit.ebitda, base: 0, fill: '#10b981', label: '= Resultado' }
+      { name: '1. Ingresos', valor: audit.ventasNetas, base: 0, fill: '#3b82f6', label: 'Ventas Netas' },
+      { name: '2. Mercadería', valor: audit.totalCmv, base: Math.max(0, audit.margenBruto), fill: '#f97316', label: '- Costo Mercadería' },
+      { name: '3. Margen Bruto', valor: audit.margenBruto, base: 0, fill: '#6366f1', label: '= Margen Bruto' }, // Paso intermedio clave
+      { name: '4. Gastos', valor: audit.totalGastos, base: Math.max(0, audit.ebitda), fill: '#ef4444', label: '- Gastos Fijos' },
+      { name: '5. EBITDA', valor: audit.ebitda, base: 0, fill: '#10b981', label: '= Resultado' }
     ];
   }, [audit]);
 
@@ -286,9 +280,7 @@ const App = () => {
             <AlertTriangle size={18} />
             <span>⚠️ ERROR DE CONEXIÓN: {error}</span>
           </div>
-          <button onClick={() => fetchData()} className="mt-2 text-xs bg-red-100 text-red-700 px-3 py-1 rounded-lg hover:bg-red-200 transition-colors">
-            Reintentar Conexión
-          </button>
+          <button onClick={() => fetchData()} className="mt-2 text-xs bg-red-100 text-red-700 px-3 py-1 rounded-lg hover:bg-red-200 transition-colors">Reintentar Conexión</button>
         </div>
       )}
 
@@ -297,9 +289,7 @@ const App = () => {
         {/* --- PANEL DE CONTROL DE FILTROS --- */}
         <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
           <div className="flex items-center gap-3 mb-4 pl-2">
-            <div className="bg-amber-100 p-2 rounded-xl text-amber-600">
-              <Sliders size={20} />
-            </div>
+            <div className="bg-amber-100 p-2 rounded-xl text-amber-600"><Sliders size={20} /></div>
             <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Panel de Control: Filtra tus datos</h3>
           </div>
           <div className="flex flex-wrap gap-6">
@@ -346,6 +336,7 @@ const App = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
             <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-2 flex items-center gap-2"><Activity size={16}/> Tendencia & Equilibrio</h3>
+            <p className="text-xs text-slate-400 mb-6">Línea Punteada = Meta de ventas para cubrir costos.</p>
             <ResponsiveContainer width="100%" height="80%">
               <ComposedChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -358,6 +349,7 @@ const App = () => {
               </ComposedChart>
             </ResponsiveContainer>
           </div>
+          
           <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
             <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><BarChart2 size={16}/> Cascada de Resultados (P&L)</h3>
             <ResponsiveContainer width="100%" height="80%">
@@ -365,7 +357,21 @@ const App = () => {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} interval={0} />
                 <YAxis hide />
-                <Tooltip cursor={{fill: 'transparent'}} content={({ payload, label }) => { if (payload && payload.length > 0) { const data = payload[0].payload; return ( <div className="bg-white p-4 rounded-2xl shadow-xl border border-slate-100"> <p className="text-xs font-bold text-slate-400 mb-1">{data.label}</p> <p className="text-lg font-black text-slate-800">{formatCurrency(data.valor)}</p> </div> ); } return null; }} />
+                <Tooltip 
+                  cursor={{fill: 'transparent'}}
+                  content={({ payload, label }) => {
+                    if (payload && payload.length > 0) {
+                      const data = payload[0].payload;
+                      return (
+                        <div className="bg-white p-4 rounded-2xl shadow-xl border border-slate-100">
+                          <p className="text-xs font-bold text-slate-400 mb-1">{data.label}</p>
+                          <p className="text-lg font-black text-slate-800">{formatCurrency(data.valor)}</p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
                 <Bar dataKey="base" stackId="a" fill="transparent" />
                 <Bar dataKey="valor" stackId="a" radius={[6, 6, 6, 6]}>
                   {waterfallData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.fill} />))}
