@@ -9,7 +9,7 @@ import {
 
 /**
  * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL
- * Versión: Flujo Financiero Lógica Explícita (Entradas - Salidas)
+ * Versión: Lógica Financiera Exacta (Caja Real vs Dependencia)
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
@@ -204,7 +204,7 @@ const App = () => {
     };
   }, [data, selectedBranch, selectedMonth, currentTab]);
 
-  // --- LÓGICA FINANCIERA (CASH FLOW - Ajustada a Pedido) ---
+  // --- LÓGICA FINANCIERA (CASH FLOW - Ajustada) ---
   const financialStats = useMemo(() => {
     if (currentTab !== 'financiero') return null;
     const filtered = data.filter(d => selectedMonth === 'Acumulado' || d.Mes === selectedMonth);
@@ -227,8 +227,8 @@ const App = () => {
     const cajaLibreReal = resultadoOperativo + cajaComprometida; 
     
     // 4. Personal
-    const personalNeto = calcularRubro('personal'); // Neto negativo
-    const personalSalida = filtered.filter(r => r.Tipo.toLowerCase().includes('personal')).reduce((a,b) => a + b.Salida, 0); // Valor absoluto para mostrar
+    const personalNeto = calcularRubro('personal'); // Neto negativo (Entrada - Salida)
+    const personalSalida = filtered.filter(r => r.Tipo.toLowerCase().includes('personal')).reduce((a,b) => a + b.Salida, 0); // Valor absoluto para mostrar en tarjeta
 
     // 5. Financiamiento Neto
     const financiamientoNeto = calcularRubro('financiamiento'); 
@@ -236,11 +236,11 @@ const App = () => {
     // 6. Aportes
     const aportesNeto = calcularRubro('aporte'); 
     
-    // 7. Dependencia de Financiamiento = Clearing Aportes + Clearing Financiamiento
+    // 7. Dependencia Financiera = Aportes + Financiamiento Neto (Clearing Total Externo)
     const dependenciaFinanciera = aportesNeto + financiamientoNeto;
 
     // 8. Caja Real Final = R. Operativo + Caja Comp. + Personal + Financiamiento Neto
-    // (Siguiendo la lógica de la imagen donde Personal y Financiamento son negativos y se suman al total)
+    // (NOTA: No sumamos Aportes en la Caja Real Final, siguiendo la lógica del cuadro de imagen)
     const cajaRealFinal = resultadoOperativo + cajaComprometida + personalNeto + financiamientoNeto;
 
     return { 
@@ -268,6 +268,7 @@ const App = () => {
         }));
         const ventasNetas = v - comis;
         const ebitda = ventasNetas - c - g;
+        // Equilibrio
         const margen = ventasNetas - c;
         const ratio = ventasNetas > 0 ? margen / ventasNetas : 0;
         const equilibrio = ratio > 0 ? g / ratio : 0;
