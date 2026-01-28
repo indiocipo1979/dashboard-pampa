@@ -9,13 +9,12 @@ import {
 
 /**
  * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL
- * Versión: Lógica Financiera Exacta (Clearing Aportes + Financiamiento)
+ * Versión: Lógica Dependencia Financiera Condicional
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
 const LOGO_URL = "https://raw.githubusercontent.com/indiocipo1979/dashboard-pampa/813294c2178aefbd20bf295d6968254b5d248790/logo_pampa.png";
 
-// Función segura para limpiar montos
 const cleanMonto = (val) => {
   if (typeof val === 'number') return Math.abs(val);
   const str = String(val || '0').trim();
@@ -25,7 +24,6 @@ const cleanMonto = (val) => {
   return Math.abs(parseFloat(str) || 0);
 };
 
-// Función para formatear fechas
 const formatPeriod = (periodStr) => {
   if (!periodStr || periodStr === 'Acumulado') return 'Acumulado';
   try {
@@ -204,17 +202,17 @@ const App = () => {
     };
   }, [data, selectedBranch, selectedMonth, currentTab]);
 
-  // --- LÓGICA FINANCIERA (CASH FLOW - Ajustada) ---
+  // --- LÓGICA FINANCIERA (CASH FLOW - Corregida v3) ---
   const financialStats = useMemo(() => {
     if (currentTab !== 'financiero') return null;
     const filtered = data.filter(d => selectedMonth === 'Acumulado' || d.Mes === selectedMonth);
 
     // Helper: Suma Entradas - Salidas explícitamente para un tipo
     const calcularRubro = (textoTipo) => {
-      const items = filtered.filter(r => r.Tipo.toLowerCase().includes(textoTipo));
-      const totalEntradas = items.reduce((sum, item) => sum + item.Entrada, 0);
-      const totalSalidas = items.reduce((sum, item) => sum + item.Salida, 0);
-      return totalEntradas - totalSalidas; // Devuelve el neto (positivo o negativo)
+      const items = filtered.filter(r => r.Tipo && r.Tipo.toLowerCase().includes(textoTipo));
+      const totalEntradas = items.reduce((sum, item) => sum + (item.Entrada || 0), 0);
+      const totalSalidas = items.reduce((sum, item) => sum + (item.Salida || 0), 0);
+      return totalEntradas - totalSalidas; 
     };
 
     // 1. Resultado Operativo
@@ -228,7 +226,7 @@ const App = () => {
     
     // 4. Personal
     const personalNeto = calcularRubro('personal');
-    const personalSalida = filtered.filter(r => r.Tipo.toLowerCase().includes('personal')).reduce((a,b) => a + b.Salida, 0);
+    const personalSalida = filtered.filter(r => r.Tipo && r.Tipo.toLowerCase().includes('personal')).reduce((a,b) => a + (b.Salida || 0), 0);
 
     // 5. Financiamiento Neto
     const financiamientoNeto = calcularRubro('financiamiento'); 
@@ -236,12 +234,16 @@ const App = () => {
     // 6. Aportes Neto
     const aportesNeto = calcularRubro('aporte'); 
     
-    // 7. Dependencia Financiera = (Entradas Fin - Salidas Fin) + (Entradas Ap - Salidas Ap)
-    // ESTA ES LA CORRECCIÓN SOLICITADA
-    const dependenciaFinanciera = financiamientoNeto + aportesNeto;
+    // 7. Dependencia Financiera CORREGIDA
+    // Lógica: (Entradas Fin - Salidas Fin) + (Saldo Neto Aportes [con logica de signos])
+    // Si AportesNeto < 0 (negativo) -> Se SUMA (FinNeto + AportesNeto)
+    // Si AportesNeto >= 0 (positivo) -> Se RESTA (FinNeto - AportesNeto)
+    const dependenciaFinanciera = aportesNeto < 0 
+      ? financiamientoNeto + aportesNeto 
+      : financiamientoNeto - aportesNeto;
 
-    // 8. Caja Real Final = Operativo + Comprometida + Personal + Financiamiento Neto
-    // (Nota: No incluye Aportes, según el cuadro proporcionado)
+    // 8. Caja Real Final
+    // Se mantiene: Operativo + Comprometida + Personal + Financiamiento Neto
     const cajaRealFinal = resultadoOperativo + cajaComprometida + personalNeto + financiamientoNeto;
 
     return { 
