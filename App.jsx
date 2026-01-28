@@ -9,12 +9,23 @@ import {
 
 /**
  * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL
- * Versión: Flujo de Fondos con "Caja Libre Real"
+ * Versión: Gráficos Económicos Restaurados + Flujo Financiero
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
 const LOGO_URL = "https://raw.githubusercontent.com/indiocipo1979/dashboard-pampa/813294c2178aefbd20bf295d6968254b5d248790/logo_pampa.png";
 
+// Función segura para limpiar montos
+const cleanMonto = (val) => {
+  if (typeof val === 'number') return Math.abs(val);
+  const str = String(val || '0').trim();
+  if (str === '' || str === '0') return 0;
+  if (str.includes(',') && str.includes('.')) return Math.abs(parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0);
+  if (str.includes(',')) return Math.abs(parseFloat(str.replace(',', '.')) || 0);
+  return Math.abs(parseFloat(str) || 0);
+};
+
+// Función para formatear fechas
 const formatPeriod = (periodStr) => {
   if (!periodStr || periodStr === 'Acumulado') return 'Acumulado';
   try {
@@ -106,6 +117,8 @@ const App = () => {
     setLoading(true);
     setError(null);
     setUsingMockData(false);
+    
+    // IMPORTANTE: Esto pide la hoja correcta. Si get-data.js no está actualizado, fallará lo financiero.
     const sheetParam = targetTab === 'financiero' ? 'financiero' : 'ebitda';
     
     try {
@@ -118,11 +131,12 @@ const App = () => {
         setData([]);
         return;
       }
+      
       const formatted = rawData.map(item => ({
         ...item,
-        Monto: Math.abs(parseFloat(String(item.Monto || 0).replace(/[$.]/g, '').replace(',', '.')) || 0),
-        Entrada: Math.abs(parseFloat(String(item.Entrada || 0).replace(/[$.]/g, '').replace(',', '.')) || 0),
-        Salida: Math.abs(parseFloat(String(item.Salida || 0).replace(/[$.]/g, '').replace(',', '.')) || 0),
+        Monto: cleanMonto(item.Monto),
+        Entrada: cleanMonto(item.Entrada),
+        Salida: cleanMonto(item.Salida),
         Mes: String(item.Mes || item.Fecha || '').trim(),
         Sucursal: String(item.Sucursal || 'Global').trim(),
         Concepto: String(item.Concepto || '').trim(),
@@ -144,6 +158,7 @@ const App = () => {
   useEffect(() => {
     if (isLoggedIn) {
       fetchData(currentTab);
+      // Resetear filtros al cambiar de pestaña
       setSelectedBranch('Todas');
       setSelectedMonth('Acumulado');
     }
@@ -190,26 +205,25 @@ const App = () => {
     };
   }, [data, selectedBranch, selectedMonth, currentTab]);
 
-  // --- LÓGICA FINANCIERA (CASH FLOW - Nueva Estructura) ---
+  // --- LÓGICA FINANCIERA (CASH FLOW) ---
   const financialStats = useMemo(() => {
     if (currentTab !== 'financiero') return null;
     const filtered = data.filter(d => selectedMonth === 'Acumulado' || d.Mes === selectedMonth);
 
-    // Sumatoria por TIPO (como en tu excel)
     const sumNeto = (tipoKey) => filtered.filter(r => r.Tipo.toLowerCase().includes(tipoKey)).reduce((a,b) => a + (b.Entrada - b.Salida), 0);
-    const sumEntrada = (tipoKey) => filtered.filter(r => r.Tipo.toLowerCase().includes(tipoKey)).reduce((a,b) => a + b.Entrada, 0);
     const sumSalida = (tipoKey) => filtered.filter(r => r.Tipo.toLowerCase().includes(tipoKey)).reduce((a,b) => a + b.Salida, 0);
+    const sumEntrada = (tipoKey) => filtered.filter(r => r.Tipo.toLowerCase().includes(tipoKey)).reduce((a,b) => a + b.Entrada, 0);
 
     const resultadoOperativo = sumNeto('operativo');
-    const cajaComprometida = sumNeto('comprometida'); // Suele ser negativo
-    const cajaLibreReal = resultadoOperativo + cajaComprometida; // Tu métrica clave
+    const cajaComprometida = sumNeto('comprometida'); 
+    const cajaLibreReal = resultadoOperativo + cajaComprometida; 
     
     const personal = sumSalida('personal');
-    const financiamientoNeto = sumNeto('financiamiento'); // Prestamos - Pagos
-    const aportes = sumNeto('aporte'); // Aportes del dueño
+    const financiamientoNeto = sumNeto('financiamiento'); 
+    const aportes = sumNeto('aporte'); 
     
     const financiamientoTotal = financiamientoNeto + aportes;
-    const cajaRealFinal = cajaLibreReal - personal + financiamientoTotal; // Bottom line
+    const cajaRealFinal = cajaLibreReal - personal + financiamientoTotal; 
 
     return { 
       resultadoOperativo, cajaComprometida, cajaLibreReal, personal, 
@@ -217,10 +231,48 @@ const App = () => {
     };
   }, [data, selectedMonth, currentTab]);
 
+  // --- CÁLCULO DE GRÁFICOS (EBITDA RESTAURADO) ---
   const chartData = useMemo(() => {
-    if (currentTab === 'economico') return processEconomicCharts(data, selectedBranch, selectedMonth);
+    if (currentTab === 'economico') {
+      const filtered = data.filter(d => (selectedBranch === 'Todas' || d.Sucursal === selectedBranch));
+      const months = [...new Set(filtered.map(d => d.Mes))].sort();
+      
+      // Gráfico de Tendencia Mensual
+      const trend = months.map(m => {
+        const p = filtered.filter(d => d.Mes === m);
+        const sumMonto = (arr) => arr.reduce((a, b) => a + b.Monto, 0);
+        const v = sumMonto(p.filter(r => r.Concepto.toLowerCase().includes('venta') || r.Concepto.toLowerCase().includes('ingreso')));
+        const comis = sumMonto(p.filter(r => r.Concepto.toLowerCase().includes('comision')));
+        const c = sumMonto(p.filter(r => r.Concepto.toLowerCase().includes('cmv')));
+        const g = sumMonto(p.filter(r => {
+           const con = r.Concepto.toLowerCase();
+           return (con.includes('gasto') || con.includes('fijo')) && !con.includes('cmv') && !con.includes('comision');
+        }));
+        const ventasNetas = v - comis;
+        const ebitda = ventasNetas - c - g;
+        // Equilibrio
+        const margen = ventasNetas - c;
+        const ratio = ventasNetas > 0 ? margen / ventasNetas : 0;
+        const equilibrio = ratio > 0 ? g / ratio : 0;
+        return { name: m, ventas: ventasNetas, ebitda, equilibrio };
+      });
+
+      // Gráfico de Cascada
+      const stats = economicStats || { ventasNetas: 0, margenBruto: 0, totalGastos: 0, ebitda: 0, buckets: { cmv: [] } };
+      const cmvTotal = stats.buckets?.cmv ? stats.buckets.cmv.reduce((a,b)=>a+b.Monto,0) : 0;
+
+      const waterfall = [
+        { name: '1. Ingresos', valor: stats.ventasNetas, base: 0, fill: '#3b82f6', label: 'Ventas Netas' },
+        { name: '2. Mercadería', valor: cmvTotal, base: Math.max(0, stats.margenBruto), fill: '#f97316', label: '- Costo Mercadería' },
+        { name: '3. Margen Bruto', valor: stats.margenBruto, base: 0, fill: '#6366f1', label: '= Margen Bruto' },
+        { name: '4. Gastos', valor: stats.totalGastos, base: Math.max(0, stats.ebitda), fill: '#ef4444', label: '- Gastos Fijos' },
+        { name: '5. EBITDA', valor: stats.ebitda, base: 0, fill: '#10b981', label: '= Resultado' }
+      ];
+
+      return { trend, waterfall };
+    }
     return null;
-  }, [data, selectedBranch, selectedMonth, currentTab]);
+  }, [data, selectedBranch, selectedMonth, currentTab, economicStats]);
 
   const branches = ['Todas', ...new Set(data.map(d => d.Sucursal))].filter(Boolean);
   const months = ['Acumulado', ...new Set(data.map(d => d.Mes))].filter(Boolean).sort().reverse();
@@ -303,20 +355,38 @@ const App = () => {
               <KPICard title="Gastos Fijos" value={formatCurrency(economicStats.totalGastos)} icon={FileText} color="bg-red-600" detail="Estructura" />
               <KPICard title="EBITDA" value={formatCurrency(economicStats.ebitda)} icon={DollarSign} color="bg-emerald-600" detail="Resultado" />
             </div>
-            <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
-              <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><BarChart2 size={16}/> Cascada de Resultados (P&L)</h3>
-              <ResponsiveContainer width="100%" height="80%">
-                <BarChart data={chartData.waterfall}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} interval={0} />
-                  <Tooltip cursor={{fill: 'transparent'}} content={({ payload }) => { if (payload && payload.length) return <div className="bg-white p-4 rounded-xl shadow-lg border"><p className="font-bold text-slate-500 text-xs">{payload[0].payload.label}</p><p className="font-black text-lg">{formatCurrency(payload[0].value)}</p></div>; return null; }} />
-                  <Bar dataKey="base" stackId="a" fill="transparent" />
-                  <Bar dataKey="valor" stackId="a" radius={[6, 6, 6, 6]}>
-                    {chartData.waterfall.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.fill} />))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            {chartData && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
+                  <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><Activity size={16}/> Tendencia Mensual</h3>
+                  <ResponsiveContainer width="100%" height="80%">
+                    <ComposedChart data={chartData.trend}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#cbd5e1'}} dy={10} />
+                      <Tooltip contentStyle={{borderRadius: '16px', border: 'none'}} />
+                      <Bar dataKey="ventas" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={20} />
+                      <Line type="monotone" dataKey="ebitda" stroke="#10b981" strokeWidth={3} />
+                      {/* Línea punteada de Equilibrio */}
+                      <Line type="monotone" dataKey="equilibrio" stroke="#ef4444" strokeWidth={2} strokeDasharray="5 5" dot={false} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
+                  <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><BarChart2 size={16}/> Cascada de Resultados (P&L)</h3>
+                  <ResponsiveContainer width="100%" height="80%">
+                    <BarChart data={chartData.waterfall}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} interval={0} />
+                      <Tooltip cursor={{fill: 'transparent'}} content={({ payload }) => { if (payload && payload.length) return <div className="bg-white p-4 rounded-xl shadow-lg border"><p className="font-bold text-slate-500 text-xs">{payload[0].payload.label}</p><p className="font-black text-lg">{formatCurrency(payload[0].value)}</p></div>; return null; }} />
+                      <Bar dataKey="base" stackId="a" fill="transparent" />
+                      <Bar dataKey="valor" stackId="a" radius={[6, 6, 6, 6]}>
+                        {chartData.waterfall.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.fill} />))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
           </>
         )}
 
@@ -349,7 +419,6 @@ const App = () => {
               </div>
             </div>
 
-            {/* Gráfico de Cascada Financiera */}
             <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
               <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><BarChart2 size={16}/> Explicación de la Caja del Mes</h3>
               <ResponsiveContainer width="100%" height="80%">
@@ -382,16 +451,6 @@ const App = () => {
       </main>
     </div>
   );
-};
-
-const processEconomicCharts = (data, branch, month) => {
-  const filtered = data.filter(d => (branch === 'Todas' || d.Sucursal === branch));
-  const months = [...new Set(filtered.map(d => d.Mes))].sort();
-  const waterfall = [
-    { name: 'Ingresos', valor: 100, base: 0, fill: '#3b82f6', label: 'Ventas Netas' }, // Placeholder hasta que selecciones mes
-  ];
-  const trend = months.map(m => ({ name: m, ventas: 0, ebitda: 0 })); 
-  return { trend, waterfall }; 
 };
 
 const mockData = [{ Mes: '2024-01', Sucursal: 'Centro', Concepto: 'Ingreso', Subconcepto: 'Efectivo', Monto: 100000 }];
