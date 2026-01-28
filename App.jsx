@@ -9,7 +9,7 @@ import {
 
 /**
  * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL
- * Versión: Gráficos Económicos Restaurados + Flujo Financiero
+ * Versión: Full (KPIs + Semáforos + Gráficos + Financiero)
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
@@ -118,7 +118,6 @@ const App = () => {
     setError(null);
     setUsingMockData(false);
     
-    // IMPORTANTE: Esto pide la hoja correcta. Si get-data.js no está actualizado, fallará lo financiero.
     const sheetParam = targetTab === 'financiero' ? 'financiero' : 'ebitda';
     
     try {
@@ -158,7 +157,6 @@ const App = () => {
   useEffect(() => {
     if (isLoggedIn) {
       fetchData(currentTab);
-      // Resetear filtros al cambiar de pestaña
       setSelectedBranch('Todas');
       setSelectedMonth('Acumulado');
     }
@@ -198,9 +196,10 @@ const App = () => {
     const margenPct = ventasNetas > 0 ? (ebitda / ventasNetas) * 100 : 0;
     const ratioContribucion = ventasNetas > 0 ? (margenBruto / ventasNetas) : 0;
     const puntoEquilibrio = ratioContribucion > 0 ? (sum(buckets.gastos) / ratioContribucion) : 0;
+    const pesoGastosFijos = ventasNetas > 0 ? (sum(buckets.gastos) / ventasNetas) * 100 : 0;
 
     return { 
-      ventasNetas, ebitda, margenPct, totalGastos: sum(buckets.gastos), margenBruto, puntoEquilibrio,
+      ventasNetas, ebitda, margenPct, totalGastos: sum(buckets.gastos), margenBruto, puntoEquilibrio, pesoGastosFijos,
       buckets 
     };
   }, [data, selectedBranch, selectedMonth, currentTab]);
@@ -237,7 +236,6 @@ const App = () => {
       const filtered = data.filter(d => (selectedBranch === 'Todas' || d.Sucursal === selectedBranch));
       const months = [...new Set(filtered.map(d => d.Mes))].sort();
       
-      // Gráfico de Tendencia Mensual
       const trend = months.map(m => {
         const p = filtered.filter(d => d.Mes === m);
         const sumMonto = (arr) => arr.reduce((a, b) => a + b.Monto, 0);
@@ -257,7 +255,6 @@ const App = () => {
         return { name: m, ventas: ventasNetas, ebitda, equilibrio };
       });
 
-      // Gráfico de Cascada
       const stats = economicStats || { ventasNetas: 0, margenBruto: 0, totalGastos: 0, ebitda: 0, buckets: { cmv: [] } };
       const cmvTotal = stats.buckets?.cmv ? stats.buckets.cmv.reduce((a,b)=>a+b.Monto,0) : 0;
 
@@ -313,7 +310,6 @@ const App = () => {
 
       <main className="max-w-7xl mx-auto px-8 mt-10 space-y-10">
         
-        {/* --- FILTROS --- */}
         <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
           <div className="flex items-center gap-3 mb-4 pl-2">
             <div className="bg-amber-100 p-2 rounded-xl text-amber-600"><Sliders size={20} /></div>
@@ -355,19 +351,28 @@ const App = () => {
               <KPICard title="Gastos Fijos" value={formatCurrency(economicStats.totalGastos)} icon={FileText} color="bg-red-600" detail="Estructura" />
               <KPICard title="EBITDA" value={formatCurrency(economicStats.ebitda)} icon={DollarSign} color="bg-emerald-600" detail="Resultado" />
             </div>
+
+            {/* SEMÁFOROS (RESTAURADOS) */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <TrafficLightCard title="Salud del Margen EBITDA" value={economicStats.margenPct.toFixed(1)} suffix="%" threshold={{ green: 15, yellow: 8 }} type="higherIsBetter" />
+              <TrafficLightCard title="Cobertura Punto de Equilibrio" value={economicStats.puntoEquilibrio > 0 ? ((economicStats.ventasNetas / economicStats.puntoEquilibrio) * 100).toFixed(0) : 0} suffix="%" threshold={{ green: 100, yellow: 90 }} type="higherIsBetter" />
+              <TrafficLightCard title="Peso Gastos Fijos s/Venta" value={economicStats.pesoGastosFijos.toFixed(1)} suffix="%" threshold={{ green: 30, yellow: 40 }} type="lowerIsBetter" />
+            </div>
+
             {chartData && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
-                  <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><Activity size={16}/> Tendencia Mensual</h3>
+                  <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><Activity size={16}/> Tendencia Mensual & Equilibrio</h3>
                   <ResponsiveContainer width="100%" height="80%">
                     <ComposedChart data={chartData.trend}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#cbd5e1'}} dy={10} />
                       <Tooltip contentStyle={{borderRadius: '16px', border: 'none'}} />
-                      <Bar dataKey="ventas" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={20} />
-                      <Line type="monotone" dataKey="ebitda" stroke="#10b981" strokeWidth={3} />
+                      <Legend />
+                      <Bar dataKey="ventas" name="Ventas" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={20} />
+                      <Line type="monotone" dataKey="ebitda" name="EBITDA" stroke="#10b981" strokeWidth={3} />
                       {/* Línea punteada de Equilibrio */}
-                      <Line type="monotone" dataKey="equilibrio" stroke="#ef4444" strokeWidth={2} strokeDasharray="5 5" dot={false} />
+                      <Line type="monotone" dataKey="equilibrio" name="Pto. Equilibrio" stroke="#ef4444" strokeWidth={2} strokeDasharray="5 5" dot={false} />
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
