@@ -9,7 +9,7 @@ import {
 
 /**
  * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL
- * Versión: Lógica Financiera Exacta (Caja Real vs Dependencia)
+ * Versión: Fórmula Dependencia Financiera Corregida (Clearing Explícito)
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
@@ -204,7 +204,7 @@ const App = () => {
     };
   }, [data, selectedBranch, selectedMonth, currentTab]);
 
-  // --- LÓGICA FINANCIERA (CASH FLOW - Ajustada) ---
+  // --- LÓGICA FINANCIERA (CASH FLOW - Corregida) ---
   const financialStats = useMemo(() => {
     if (currentTab !== 'financiero') return null;
     const filtered = data.filter(d => selectedMonth === 'Acumulado' || d.Mes === selectedMonth);
@@ -214,33 +214,37 @@ const App = () => {
       const items = filtered.filter(r => r.Tipo.toLowerCase().includes(textoTipo));
       const totalEntradas = items.reduce((sum, item) => sum + item.Entrada, 0);
       const totalSalidas = items.reduce((sum, item) => sum + item.Salida, 0);
-      return totalEntradas - totalSalidas; // Devuelve el neto (positivo o negativo)
+      return totalEntradas - totalSalidas; // Devuelve el neto
     };
 
     // 1. Resultado Operativo
     const resultadoOperativo = calcularRubro('operativo');
     
-    // 2. Caja Comprometida (Entradas - Salidas, suele ser negativo)
+    // 2. Caja Comprometida
     const cajaComprometida = calcularRubro('comprometida'); 
     
-    // 3. Caja Libre Real = Operativo + Comprometida (Negativo resta al sumarse)
+    // 3. Caja Libre Real
     const cajaLibreReal = resultadoOperativo + cajaComprometida; 
     
     // 4. Personal
-    const personalNeto = calcularRubro('personal'); // Neto negativo (Entrada - Salida)
-    const personalSalida = filtered.filter(r => r.Tipo.toLowerCase().includes('personal')).reduce((a,b) => a + b.Salida, 0); // Valor absoluto para mostrar en tarjeta
+    const personalNeto = calcularRubro('personal');
+    const personalSalida = filtered.filter(r => r.Tipo.toLowerCase().includes('personal')).reduce((a,b) => a + b.Salida, 0);
 
     // 5. Financiamiento Neto
-    const financiamientoNeto = calcularRubro('financiamiento'); 
+    const finEntradas = filtered.filter(r => r.Tipo.toLowerCase().includes('financiamiento')).reduce((a,b) => a + b.Entrada, 0);
+    const finSalidas = filtered.filter(r => r.Tipo.toLowerCase().includes('financiamiento')).reduce((a,b) => a + b.Salida, 0);
+    const financiamientoNeto = finEntradas - finSalidas;
     
     // 6. Aportes
-    const aportesNeto = calcularRubro('aporte'); 
+    const apEntradas = filtered.filter(r => r.Tipo.toLowerCase().includes('aporte')).reduce((a,b) => a + b.Entrada, 0);
+    const apSalidas = filtered.filter(r => r.Tipo.toLowerCase().includes('aporte')).reduce((a,b) => a + b.Salida, 0);
+    const aportesNeto = apEntradas - apSalidas;
     
-    // 7. Dependencia Financiera = Aportes + Financiamiento Neto (Clearing Total Externo)
-    const dependenciaFinanciera = aportesNeto + financiamientoNeto;
+    // 7. Dependencia Financiera = (Entradas Fin - Salidas Fin) + (Entradas Ap - Salidas Ap)
+    const dependenciaFinanciera = financiamientoNeto + aportesNeto;
 
-    // 8. Caja Real Final = R. Operativo + Caja Comp. + Personal + Financiamiento Neto
-    // (NOTA: No sumamos Aportes en la Caja Real Final, siguiendo la lógica del cuadro de imagen)
+    // 8. Caja Real Final = Operativo + Comprometida + Personal + Financiamiento Neto
+    // (Nota: No incluye Aportes, según el cuadro proporcionado)
     const cajaRealFinal = resultadoOperativo + cajaComprometida + personalNeto + financiamientoNeto;
 
     return { 
