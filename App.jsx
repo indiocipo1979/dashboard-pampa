@@ -9,7 +9,7 @@ import {
 
 /**
  * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL
- * Versión: Fórmula Dependencia Financiera Corregida (Clearing Explícito)
+ * Versión: Lógica Financiera Exacta (Clearing Aportes + Financiamiento)
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
@@ -204,7 +204,7 @@ const App = () => {
     };
   }, [data, selectedBranch, selectedMonth, currentTab]);
 
-  // --- LÓGICA FINANCIERA (CASH FLOW - Corregida) ---
+  // --- LÓGICA FINANCIERA (CASH FLOW - Ajustada) ---
   const financialStats = useMemo(() => {
     if (currentTab !== 'financiero') return null;
     const filtered = data.filter(d => selectedMonth === 'Acumulado' || d.Mes === selectedMonth);
@@ -214,7 +214,7 @@ const App = () => {
       const items = filtered.filter(r => r.Tipo.toLowerCase().includes(textoTipo));
       const totalEntradas = items.reduce((sum, item) => sum + item.Entrada, 0);
       const totalSalidas = items.reduce((sum, item) => sum + item.Salida, 0);
-      return totalEntradas - totalSalidas; // Devuelve el neto
+      return totalEntradas - totalSalidas; // Devuelve el neto (positivo o negativo)
     };
 
     // 1. Resultado Operativo
@@ -230,17 +230,14 @@ const App = () => {
     const personalNeto = calcularRubro('personal');
     const personalSalida = filtered.filter(r => r.Tipo.toLowerCase().includes('personal')).reduce((a,b) => a + b.Salida, 0);
 
-    // 5. Financiamiento Neto
-    const finEntradas = filtered.filter(r => r.Tipo.toLowerCase().includes('financiamiento')).reduce((a,b) => a + b.Entrada, 0);
-    const finSalidas = filtered.filter(r => r.Tipo.toLowerCase().includes('financiamiento')).reduce((a,b) => a + b.Salida, 0);
-    const financiamientoNeto = finEntradas - finSalidas;
+    // 5. Financiamiento Neto (Clearing Financiamiento)
+    const financiamientoNeto = calcularRubro('financiamiento'); 
     
-    // 6. Aportes
-    const apEntradas = filtered.filter(r => r.Tipo.toLowerCase().includes('aporte')).reduce((a,b) => a + b.Entrada, 0);
-    const apSalidas = filtered.filter(r => r.Tipo.toLowerCase().includes('aporte')).reduce((a,b) => a + b.Salida, 0);
-    const aportesNeto = apEntradas - apSalidas;
+    // 6. Aportes Neto (Clearing Aportes)
+    const aportesNeto = calcularRubro('aporte'); 
     
     // 7. Dependencia Financiera = (Entradas Fin - Salidas Fin) + (Entradas Ap - Salidas Ap)
+    // ESTA ES LA CORRECCIÓN SOLICITADA
     const dependenciaFinanciera = financiamientoNeto + aportesNeto;
 
     // 8. Caja Real Final = Operativo + Comprometida + Personal + Financiamiento Neto
