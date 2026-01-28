@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+mport React, { useState, useEffect, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
 import { 
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, ComposedChart, ReferenceLine
@@ -9,7 +9,7 @@ import {
 
 /**
  * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL
- * Versión: Colores Dinámicos (Negativo=Rojo, Positivo=Negro)
+ * Versión: Incluye KPI Margen Bruto % en Semáforos
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
@@ -47,27 +47,21 @@ const formatPeriod = (periodStr) => {
   } catch (error) { return periodStr; }
 };
 
-const KPICard = ({ title, value, icon: Icon, color, detail, subtext }) => {
-  // Lógica de color: Si el texto contiene un guion "-", es negativo -> ROJO. Si no, NEGRO.
-  const isNegative = typeof value === 'string' && value.includes('-');
-  const valueColor = isNegative ? 'text-red-600' : 'text-slate-800';
-
-  return (
-    <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col justify-between transition-all hover:shadow-md h-full">
-      <div className="flex justify-between items-start mb-4">
-        <div className={`p-3 rounded-2xl ${color} bg-opacity-10`}>
-          <Icon className={`w-6 h-6 ${color.replace('bg-', 'text-')}`} />
-        </div>
-        {detail && <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 uppercase tracking-tighter">{detail}</span>}
+const KPICard = ({ title, value, icon: Icon, color, detail, subtext }) => (
+  <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col justify-between transition-all hover:shadow-md h-full">
+    <div className="flex justify-between items-start mb-4">
+      <div className={`p-3 rounded-2xl ${color} bg-opacity-10`}>
+        <Icon className={`w-6 h-6 ${color.replace('bg-', 'text-')}`} />
       </div>
-      <div>
-        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">{title}</p>
-        <h3 className={`text-2xl font-black mt-1 ${valueColor}`}>{value}</h3>
-        {subtext && <p className="text-[10px] text-slate-500 mt-2 font-medium bg-slate-50 p-2 rounded-lg leading-snug">{subtext}</p>}
-      </div>
+      {detail && <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 uppercase tracking-tighter">{detail}</span>}
     </div>
-  );
-};
+    <div>
+      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">{title}</p>
+      <h3 className="text-2xl font-black text-slate-800 mt-1">{value}</h3>
+      {subtext && <p className="text-[10px] text-slate-500 mt-2 font-medium bg-slate-50 p-2 rounded-lg leading-snug">{subtext}</p>}
+    </div>
+  </div>
+);
 
 const TrafficLightCard = ({ title, value, threshold, type = 'higherIsBetter', suffix = '' }) => {
   let statusColor = 'bg-slate-100 text-slate-500';
@@ -203,9 +197,11 @@ const App = () => {
     const ratioContribucion = ventasNetas > 0 ? (margenBruto / ventasNetas) : 0;
     const puntoEquilibrio = ratioContribucion > 0 ? (sum(buckets.gastos) / ratioContribucion) : 0;
     const pesoGastosFijos = ventasNetas > 0 ? (sum(buckets.gastos) / ventasNetas) * 100 : 0;
+    // Cálculo nuevo para la tarjeta
+    const margenBrutoPct = ventasNetas > 0 ? (margenBruto / ventasNetas) * 100 : 0;
 
     return { 
-      ventasNetas, ebitda, margenPct, totalGastos: sum(buckets.gastos), margenBruto, puntoEquilibrio, pesoGastosFijos,
+      ventasNetas, ebitda, margenPct, totalGastos: sum(buckets.gastos), margenBruto, puntoEquilibrio, pesoGastosFijos, margenBrutoPct,
       buckets 
     };
   }, [data, selectedBranch, selectedMonth, currentTab]);
@@ -234,6 +230,7 @@ const App = () => {
     
     // 4. Personal
     const personalNeto = calcularRubro('personal');
+    const personalSalida = filtered.filter(r => r.Tipo && r.Tipo.toLowerCase().includes('personal')).reduce((a,b) => a + (b.Salida || 0), 0);
 
     // 5. Financiamiento Neto
     const financiamientoNeto = calcularRubro('financiamiento'); 
@@ -242,21 +239,16 @@ const App = () => {
     const aportesNeto = calcularRubro('aporte'); 
     
     // 7. Dependencia Financiera CORREGIDA
-    // Lógica: (Entradas Fin - Salidas Fin) + (Saldo Neto Aportes [con logica de signos])
-    // Si AportesNeto < 0 (negativo) -> Se SUMA (FinNeto + AportesNeto)
-    // Si AportesNeto >= 0 (positivo) -> Se RESTA (FinNeto - AportesNeto)
     const dependenciaFinanciera = aportesNeto < 0 
       ? financiamientoNeto + aportesNeto 
       : financiamientoNeto - aportesNeto;
 
     // 8. Caja Real Final
-    // Se mantiene: Operativo + Comprometida + Personal + Financiamiento Neto
-    // (Nota: No incluye Aportes, según el cuadro proporcionado)
     const cajaRealFinal = resultadoOperativo + cajaComprometida + personalNeto + financiamientoNeto;
 
     return { 
       resultadoOperativo, cajaComprometida, cajaLibreReal, 
-      personalNeto,
+      personalNeto, personalSalida,
       financiamientoNeto, aportesNeto, dependenciaFinanciera, cajaRealFinal
     };
   }, [data, selectedMonth, currentTab]);
@@ -383,8 +375,9 @@ const App = () => {
               <KPICard title="EBITDA" value={formatCurrency(economicStats.ebitda)} icon={DollarSign} color="bg-emerald-600" detail="Resultado" />
             </div>
 
-            {/* SEMÁFOROS (RESTAURADOS) */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* SEMÁFOROS CON NUEVO KPI */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <TrafficLightCard title="Margen Bruto %" value={economicStats.margenBrutoPct.toFixed(1)} suffix="%" threshold={{ green: 40, yellow: 30 }} type="higherIsBetter" />
               <TrafficLightCard title="Salud del Margen EBITDA" value={economicStats.margenPct.toFixed(1)} suffix="%" threshold={{ green: 15, yellow: 8 }} type="higherIsBetter" />
               <TrafficLightCard title="Cobertura Punto de Equilibrio" value={economicStats.puntoEquilibrio > 0 ? ((economicStats.ventasNetas / economicStats.puntoEquilibrio) * 100).toFixed(0) : 0} suffix="%" threshold={{ green: 100, yellow: 90 }} type="higherIsBetter" />
               <TrafficLightCard title="Peso Gastos Fijos s/Venta" value={economicStats.pesoGastosFijos.toFixed(1)} suffix="%" threshold={{ green: 30, yellow: 40 }} type="lowerIsBetter" />
