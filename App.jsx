@@ -9,12 +9,13 @@ import {
 
 /**
  * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL
- * Versión: Lógica Dependencia Financiera Condicional
+ * Versión: Flujo Financiero Ajustado (3 Tarjetas Inferiores)
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
 const LOGO_URL = "https://raw.githubusercontent.com/indiocipo1979/dashboard-pampa/813294c2178aefbd20bf295d6968254b5d248790/logo_pampa.png";
 
+// Función segura para limpiar montos
 const cleanMonto = (val) => {
   if (typeof val === 'number') return Math.abs(val);
   const str = String(val || '0').trim();
@@ -24,6 +25,7 @@ const cleanMonto = (val) => {
   return Math.abs(parseFloat(str) || 0);
 };
 
+// Función para formatear fechas
 const formatPeriod = (periodStr) => {
   if (!periodStr || periodStr === 'Acumulado') return 'Acumulado';
   try {
@@ -225,8 +227,7 @@ const App = () => {
     const cajaLibreReal = resultadoOperativo + cajaComprometida; 
     
     // 4. Personal
-    const personalNeto = calcularRubro('personal');
-    const personalSalida = filtered.filter(r => r.Tipo && r.Tipo.toLowerCase().includes('personal')).reduce((a,b) => a + (b.Salida || 0), 0);
+    const personalNeto = calcularRubro('personal'); // Usamos el neto para que sea negativo
 
     // 5. Financiamiento Neto
     const financiamientoNeto = calcularRubro('financiamiento'); 
@@ -244,11 +245,12 @@ const App = () => {
 
     // 8. Caja Real Final
     // Se mantiene: Operativo + Comprometida + Personal + Financiamiento Neto
+    // (Nota: No incluye Aportes, según el cuadro proporcionado)
     const cajaRealFinal = resultadoOperativo + cajaComprometida + personalNeto + financiamientoNeto;
 
     return { 
       resultadoOperativo, cajaComprometida, cajaLibreReal, 
-      personalNeto, personalSalida,
+      personalNeto,
       financiamientoNeto, aportesNeto, dependenciaFinanciera, cajaRealFinal
     };
   }, [data, selectedMonth, currentTab]);
@@ -445,7 +447,28 @@ const App = () => {
               <KPICard title="Caja Real Final" value={formatCurrency(financialStats.cajaRealFinal)} icon={PiggyBank} color={financialStats.cajaRealFinal >= 0 ? "bg-indigo-600" : "bg-red-600"} detail="Bolsillo del Mes" subtext="Después de todo" />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* 1. Financiamiento Neto */}
+              <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
+                <div>
+                  <h3 className="font-black text-slate-800 uppercase text-xs mb-2">Financiamiento Neto</h3>
+                  <p className={`text-3xl font-black ${financialStats.financiamientoNeto >= 0 ? 'text-slate-800' : 'text-red-600'}`}>{formatCurrency(financialStats.financiamientoNeto)}</p>
+                  <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Préstamos - Pagos</p>
+                </div>
+                <div className="bg-indigo-50 p-4 rounded-2xl text-indigo-600"><CreditCard size={32}/></div>
+              </div>
+
+              {/* 2. Retiros Personales */}
+              <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
+                <div>
+                  <h3 className="font-black text-slate-800 uppercase text-xs mb-2">Retiros Personales</h3>
+                  <p className="text-3xl font-black text-red-600">{formatCurrency(financialStats.personalNeto)}</p>
+                  <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Salidas por Tipo "Personal"</p>
+                </div>
+                <div className="bg-purple-50 p-4 rounded-2xl text-purple-600"><Users size={32}/></div>
+              </div>
+
+              {/* 3. Dependencia Financiera */}
               <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
                 <div>
                   <h3 className="font-black text-slate-800 uppercase text-xs mb-2">Dependencia Financiera</h3>
@@ -454,14 +477,6 @@ const App = () => {
                 </div>
                 <div className="bg-blue-50 p-4 rounded-2xl text-blue-600"><Landmark size={32}/></div>
               </div>
-              <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
-                <div>
-                  <h3 className="font-black text-slate-800 uppercase text-xs mb-2">Retiros de Personal</h3>
-                  <p className="text-3xl font-black text-slate-800">{formatCurrency(financialStats.personalSalida)}</p>
-                  <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Salidas por Tipo "Personal"</p>
-                </div>
-                <div className="bg-purple-50 p-4 rounded-2xl text-purple-600"><Users size={32}/></div>
-              </div>
             </div>
 
             <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
@@ -469,10 +484,10 @@ const App = () => {
               <ResponsiveContainer width="100%" height="80%">
                 <BarChart data={[
                   { name: 'R. Operativo', valor: financialStats.resultadoOperativo, base: 0, fill: '#3b82f6', label: 'Resultado Operativo' },
-                  { name: 'Comprometido', valor: financialStats.cajaComprometida, base: Math.max(0, financialStats.resultadoOperativo), fill: '#f97316', label: '+ Caja Comprometida' },
+                  { name: 'Comprometido', valor: financialStats.cajaComprometida, base: Math.max(0, financialStats.resultadoOperativo), fill: '#f97316', label: '- Caja Comprometida' },
                   { name: 'Caja Libre', valor: financialStats.cajaLibreReal, base: 0, fill: '#10b981', label: '= Caja Libre Real' },
-                  { name: 'Personal', valor: financialStats.personalNeto, base: Math.max(0, financialStats.cajaLibreReal), fill: '#ec4899', label: '+ Personal (Neto)' },
-                  { name: 'Financiamiento', valor: financialStats.financiamientoNeto, base: Math.max(0, financialStats.cajaLibreReal + financialStats.personalNeto), fill: '#8b5cf6', label: '+ Financiamiento Neto' },
+                  { name: 'Personal', valor: financialStats.personalNeto, base: Math.max(0, financialStats.cajaLibreReal), fill: '#ec4899', label: '- Personal' },
+                  { name: 'Financiamiento', valor: financialStats.financiamientoNeto, base: Math.max(0, financialStats.cajaLibreReal + financialStats.personalNeto), fill: '#8b5cf6', label: '+/- Financiamiento' },
                   { name: 'Caja Final', valor: financialStats.cajaRealFinal, base: 0, fill: financialStats.cajaRealFinal >= 0 ? '#14b8a6' : '#ef4444', label: '= Caja Real Final' }
                 ]}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
