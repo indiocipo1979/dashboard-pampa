@@ -9,7 +9,7 @@ import {
 
 /**
  * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL
- * Versión: Full (KPIs + Semáforos + Gráficos + Financiero)
+ * Versión: Gráficos Económicos Separados (Equilibrio vs EBITDA)
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
@@ -230,7 +230,7 @@ const App = () => {
     };
   }, [data, selectedMonth, currentTab]);
 
-  // --- CÁLCULO DE GRÁFICOS (EBITDA RESTAURADO) ---
+  // --- CÁLCULO DE GRÁFICOS (EBITDA RESTAURADO Y SEPARADO) ---
   const chartData = useMemo(() => {
     if (currentTab === 'economico') {
       const filtered = data.filter(d => (selectedBranch === 'Todas' || d.Sucursal === selectedBranch));
@@ -360,37 +360,58 @@ const App = () => {
             </div>
 
             {chartData && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
-                  <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><Activity size={16}/> Tendencia Mensual & Equilibrio</h3>
-                  <ResponsiveContainer width="100%" height="80%">
-                    <ComposedChart data={chartData.trend}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#cbd5e1'}} dy={10} />
-                      <Tooltip contentStyle={{borderRadius: '16px', border: 'none'}} />
-                      <Legend />
-                      <Bar dataKey="ventas" name="Ventas" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={20} />
-                      <Line type="monotone" dataKey="ebitda" name="EBITDA" stroke="#10b981" strokeWidth={3} />
-                      {/* Línea punteada de Equilibrio */}
-                      <Line type="monotone" dataKey="equilibrio" name="Pto. Equilibrio" stroke="#ef4444" strokeWidth={2} strokeDasharray="5 5" dot={false} />
-                    </ComposedChart>
-                  </ResponsiveContainer>
+              <>
+                {/* FILA DE GRÁFICOS SEPARADOS (NUEVA ESTRUCTURA) */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* Gráfico 1: Punto de Equilibrio */}
+                  <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
+                    <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><Scale size={16}/> Punto de Equilibrio vs Ventas</h3>
+                    <ResponsiveContainer width="100%" height="80%">
+                      <ComposedChart data={chartData.trend}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#cbd5e1'}} dy={10} />
+                        <Tooltip contentStyle={{borderRadius: '16px', border: 'none'}} formatter={(value) => formatCurrency(value)} />
+                        <Legend />
+                        <Bar dataKey="ventas" name="Ventas Reales" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={20} />
+                        <Line type="monotone" dataKey="equilibrio" name="Meta (Equilibrio)" stroke="#ef4444" strokeWidth={3} strokeDasharray="5 5" dot={{r: 4, fill: '#ef4444'}} />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Gráfico 2: Tendencia EBITDA */}
+                  <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
+                    <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><Activity size={16}/> Evolución del EBITDA</h3>
+                    <ResponsiveContainer width="100%" height="80%">
+                      <ComposedChart data={chartData.trend}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#cbd5e1'}} dy={10} />
+                        <Tooltip contentStyle={{borderRadius: '16px', border: 'none'}} formatter={(value) => formatCurrency(value)} />
+                        <Legend />
+                        <Bar dataKey="ventas" name="Ventas (Contexto)" fill="#e2e8f0" radius={[4, 4, 0, 0]} barSize={20} />
+                        <Line type="monotone" dataKey="ebitda" name="EBITDA" stroke="#10b981" strokeWidth={4} dot={{r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#fff'}} />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
                 </div>
-                <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
-                  <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><BarChart2 size={16}/> Cascada de Resultados (P&L)</h3>
-                  <ResponsiveContainer width="100%" height="80%">
-                    <BarChart data={chartData.waterfall}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} interval={0} />
-                      <Tooltip cursor={{fill: 'transparent'}} content={({ payload }) => { if (payload && payload.length) return <div className="bg-white p-4 rounded-xl shadow-lg border"><p className="font-bold text-slate-500 text-xs">{payload[0].payload.label}</p><p className="font-black text-lg">{formatCurrency(payload[0].value)}</p></div>; return null; }} />
-                      <Bar dataKey="base" stackId="a" fill="transparent" />
-                      <Bar dataKey="valor" stackId="a" radius={[6, 6, 6, 6]}>
-                        {chartData.waterfall.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.fill} />))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+
+                {/* FILA INFERIOR: CASCADA */}
+                <div className="grid grid-cols-1 gap-8">
+                  <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
+                    <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><BarChart2 size={16}/> Cascada de Resultados (P&L)</h3>
+                    <ResponsiveContainer width="100%" height="80%">
+                      <BarChart data={chartData.waterfall}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} interval={0} />
+                        <Tooltip cursor={{fill: 'transparent'}} content={({ payload }) => { if (payload && payload.length) return <div className="bg-white p-4 rounded-xl shadow-lg border"><p className="font-bold text-slate-500 text-xs">{payload[0].payload.label}</p><p className="font-black text-lg">{formatCurrency(payload[0].value)}</p></div>; return null; }} />
+                        <Bar dataKey="base" stackId="a" fill="transparent" />
+                        <Bar dataKey="valor" stackId="a" radius={[6, 6, 6, 6]}>
+                          {chartData.waterfall.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.fill} />))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
                 </div>
-              </div>
+              </>
             )}
           </>
         )}
