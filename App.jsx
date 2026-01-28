@@ -9,7 +9,7 @@ import {
 
 /**
  * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL
- * Versión: Gráficos Económicos Separados (Equilibrio vs EBITDA)
+ * Versión: Flujo Financiero Ajustado (Caja Real Final & Dependencia)
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
@@ -204,29 +204,46 @@ const App = () => {
     };
   }, [data, selectedBranch, selectedMonth, currentTab]);
 
-  // --- LÓGICA FINANCIERA (CASH FLOW) ---
+  // --- LÓGICA FINANCIERA (CASH FLOW - Ajustada) ---
   const financialStats = useMemo(() => {
     if (currentTab !== 'financiero') return null;
     const filtered = data.filter(d => selectedMonth === 'Acumulado' || d.Mes === selectedMonth);
 
+    // Helper: Suma neta (Entrada - Salida) para un 'Tipo' dado
     const sumNeto = (tipoKey) => filtered.filter(r => r.Tipo.toLowerCase().includes(tipoKey)).reduce((a,b) => a + (b.Entrada - b.Salida), 0);
-    const sumSalida = (tipoKey) => filtered.filter(r => r.Tipo.toLowerCase().includes(tipoKey)).reduce((a,b) => a + b.Salida, 0);
-    const sumEntrada = (tipoKey) => filtered.filter(r => r.Tipo.toLowerCase().includes(tipoKey)).reduce((a,b) => a + b.Entrada, 0);
-
+    // Para personal usamos Neto (será negativo) o Salida (será positiva).
+    // Tu excel muestra Personal como negativo en el cuadro resumen, así que usamos sumNeto.
+    
+    // 1. Resultado Operativo
     const resultadoOperativo = sumNeto('operativo');
+    
+    // 2. Caja Comprometida
     const cajaComprometida = sumNeto('comprometida'); 
+    
+    // 3. Caja Libre Real = Operativo + Comprometida
     const cajaLibreReal = resultadoOperativo + cajaComprometida; 
     
-    const personal = sumSalida('personal');
+    // 4. Personal (Neto, debería ser negativo)
+    const personalNeto = sumNeto('personal'); 
+    const personalSalida = filtered.filter(r => r.Tipo.toLowerCase().includes('personal')).reduce((a,b) => a + b.Salida, 0);
+
+    // 5. Financiamiento Neto (Préstamos)
     const financiamientoNeto = sumNeto('financiamiento'); 
-    const aportes = sumNeto('aporte'); 
     
-    const financiamientoTotal = financiamientoNeto + aportes;
-    const cajaRealFinal = cajaLibreReal - personal + financiamientoTotal; 
+    // 6. Aportes
+    const aportesNeto = sumNeto('aporte'); 
+    
+    // 7. Dependencia de Financiamiento = Clearing Aportes + Clearing Financiamiento
+    const dependenciaFinanciera = aportesNeto + financiamientoNeto;
+
+    // 8. Caja Real Final = R. Operativo + Caja Comp. + Personal + Financiamiento Neto
+    // (Según imagen: Op + Comp + Pers + FinNeto)
+    const cajaRealFinal = resultadoOperativo + cajaComprometida + personalNeto + financiamientoNeto;
 
     return { 
-      resultadoOperativo, cajaComprometida, cajaLibreReal, personal, 
-      financiamientoNeto, aportes, financiamientoTotal, cajaRealFinal
+      resultadoOperativo, cajaComprometida, cajaLibreReal, 
+      personalNeto, personalSalida,
+      financiamientoNeto, aportesNeto, dependenciaFinanciera, cajaRealFinal
     };
   }, [data, selectedMonth, currentTab]);
 
@@ -422,7 +439,7 @@ const App = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <KPICard title="Resultado Operativo" value={formatCurrency(financialStats.resultadoOperativo)} icon={Activity} color="bg-blue-600" detail="Dinero Generado" subtext="Operaciones del mes" />
               <KPICard title="Caja Comprometida" value={formatCurrency(financialStats.cajaComprometida)} icon={AlertTriangle} color="bg-orange-500" detail="Pasivos/Cheques" subtext="Deuda vieja pagada" />
-              <KPICard title="CAJA LIBRE REAL" value={formatCurrency(financialStats.cajaLibreReal)} icon={Wallet} color={financialStats.cajaLibreReal >= 0 ? "bg-emerald-600" : "bg-red-600"} detail="Disponibilidad Real" subtext="Operativo - Comprometido" />
+              <KPICard title="CAJA LIBRE REAL" value={formatCurrency(financialStats.cajaLibreReal)} icon={Wallet} color={financialStats.cajaLibreReal >= 0 ? "bg-emerald-600" : "bg-red-600"} detail="Disponibilidad Real" subtext="Operativo + Comprometido" />
               <KPICard title="Caja Real Final" value={formatCurrency(financialStats.cajaRealFinal)} icon={PiggyBank} color={financialStats.cajaRealFinal >= 0 ? "bg-indigo-600" : "bg-red-600"} detail="Bolsillo del Mes" subtext="Después de todo" />
             </div>
 
@@ -430,15 +447,15 @@ const App = () => {
               <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
                 <div>
                   <h3 className="font-black text-slate-800 uppercase text-xs mb-2">Dependencia Financiera</h3>
-                  <p className="text-3xl font-black text-slate-800">{formatCurrency(financialStats.financiamientoTotal)}</p>
-                  <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Aportes + Préstamos Netos</p>
+                  <p className="text-3xl font-black text-slate-800">{formatCurrency(financialStats.dependenciaFinanciera)}</p>
+                  <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Aportes + Financiamiento Neto</p>
                 </div>
                 <div className="bg-blue-50 p-4 rounded-2xl text-blue-600"><Landmark size={32}/></div>
               </div>
               <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
                 <div>
                   <h3 className="font-black text-slate-800 uppercase text-xs mb-2">Retiros de Personal</h3>
-                  <p className="text-3xl font-black text-slate-800">{formatCurrency(financialStats.personal)}</p>
+                  <p className="text-3xl font-black text-slate-800">{formatCurrency(financialStats.personalSalida)}</p>
                   <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Salidas por Tipo "Personal"</p>
                 </div>
                 <div className="bg-purple-50 p-4 rounded-2xl text-purple-600"><Users size={32}/></div>
@@ -450,10 +467,10 @@ const App = () => {
               <ResponsiveContainer width="100%" height="80%">
                 <BarChart data={[
                   { name: 'R. Operativo', valor: financialStats.resultadoOperativo, base: 0, fill: '#3b82f6', label: 'Resultado Operativo' },
-                  { name: 'Comprometido', valor: financialStats.cajaComprometida, base: Math.max(0, financialStats.resultadoOperativo), fill: '#f97316', label: '- Caja Comprometida' },
+                  { name: 'Comprometido', valor: financialStats.cajaComprometida, base: Math.max(0, financialStats.resultadoOperativo), fill: '#f97316', label: '+ Caja Comprometida' },
                   { name: 'Caja Libre', valor: financialStats.cajaLibreReal, base: 0, fill: '#10b981', label: '= Caja Libre Real' },
-                  { name: 'Personal', valor: -financialStats.personal, base: Math.max(0, financialStats.cajaLibreReal), fill: '#ec4899', label: '- Personal' },
-                  { name: 'Financiamiento', valor: financialStats.financiamientoTotal, base: Math.max(0, financialStats.cajaLibreReal - financialStats.personal), fill: '#8b5cf6', label: '+/- Financiamiento' },
+                  { name: 'Personal', valor: financialStats.personalNeto, base: Math.max(0, financialStats.cajaLibreReal), fill: '#ec4899', label: '+ Personal (Neto)' },
+                  { name: 'Financiamiento', valor: financialStats.financiamientoNeto, base: Math.max(0, financialStats.cajaLibreReal + financialStats.personalNeto), fill: '#8b5cf6', label: '+ Financiamiento Neto' },
                   { name: 'Caja Final', valor: financialStats.cajaRealFinal, base: 0, fill: financialStats.cajaRealFinal >= 0 ? '#14b8a6' : '#ef4444', label: '= Caja Real Final' }
                 ]}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
