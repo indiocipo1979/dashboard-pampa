@@ -230,10 +230,10 @@ const App = () => {
     const personalNeto = calcularRubro('personal');
     const personalSalida = filtered.filter(r => r.Tipo.toLowerCase().includes('personal')).reduce((a,b) => a + b.Salida, 0);
 
-    // 5. Financiamiento Neto (Clearing Financiamiento)
+    // 5. Financiamiento Neto
     const financiamientoNeto = calcularRubro('financiamiento'); 
     
-    // 6. Aportes Neto (Clearing Aportes)
+    // 6. Aportes Neto
     const aportesNeto = calcularRubro('aporte'); 
     
     // 7. Dependencia Financiera = (Entradas Fin - Salidas Fin) + (Entradas Ap - Salidas Ap)
