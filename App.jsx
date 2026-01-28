@@ -9,7 +9,7 @@ import {
 
 /**
  * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL
- * Versión: Flujo Financiero Ajustado (Caja Real Final & Dependencia)
+ * Versión: Flujo Financiero Lógica Explícita (Entradas - Salidas)
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
@@ -204,40 +204,43 @@ const App = () => {
     };
   }, [data, selectedBranch, selectedMonth, currentTab]);
 
-  // --- LÓGICA FINANCIERA (CASH FLOW - Ajustada) ---
+  // --- LÓGICA FINANCIERA (CASH FLOW - Ajustada a Pedido) ---
   const financialStats = useMemo(() => {
     if (currentTab !== 'financiero') return null;
     const filtered = data.filter(d => selectedMonth === 'Acumulado' || d.Mes === selectedMonth);
 
-    // Helper: Suma neta (Entrada - Salida) para un 'Tipo' dado
-    const sumNeto = (tipoKey) => filtered.filter(r => r.Tipo.toLowerCase().includes(tipoKey)).reduce((a,b) => a + (b.Entrada - b.Salida), 0);
-    // Para personal usamos Neto (será negativo) o Salida (será positiva).
-    // Tu excel muestra Personal como negativo en el cuadro resumen, así que usamos sumNeto.
-    
+    // Helper: Suma Entradas - Salidas explícitamente para un tipo
+    const calcularRubro = (textoTipo) => {
+      const items = filtered.filter(r => r.Tipo.toLowerCase().includes(textoTipo));
+      const totalEntradas = items.reduce((sum, item) => sum + item.Entrada, 0);
+      const totalSalidas = items.reduce((sum, item) => sum + item.Salida, 0);
+      return totalEntradas - totalSalidas; // Devuelve el neto (positivo o negativo)
+    };
+
     // 1. Resultado Operativo
-    const resultadoOperativo = sumNeto('operativo');
+    const resultadoOperativo = calcularRubro('operativo');
     
-    // 2. Caja Comprometida
-    const cajaComprometida = sumNeto('comprometida'); 
+    // 2. Caja Comprometida (Entradas - Salidas, suele ser negativo)
+    const cajaComprometida = calcularRubro('comprometida'); 
     
-    // 3. Caja Libre Real = Operativo + Comprometida
+    // 3. Caja Libre Real = Operativo + Comprometida (Negativo resta al sumarse)
     const cajaLibreReal = resultadoOperativo + cajaComprometida; 
     
-    // 4. Personal (Neto, debería ser negativo)
-    const personalNeto = sumNeto('personal'); 
-    const personalSalida = filtered.filter(r => r.Tipo.toLowerCase().includes('personal')).reduce((a,b) => a + b.Salida, 0);
+    // 4. Personal
+    const personalNeto = calcularRubro('personal'); // Neto negativo
+    const personalSalida = filtered.filter(r => r.Tipo.toLowerCase().includes('personal')).reduce((a,b) => a + b.Salida, 0); // Valor absoluto para mostrar
 
-    // 5. Financiamiento Neto (Préstamos)
-    const financiamientoNeto = sumNeto('financiamiento'); 
+    // 5. Financiamiento Neto
+    const financiamientoNeto = calcularRubro('financiamiento'); 
     
     // 6. Aportes
-    const aportesNeto = sumNeto('aporte'); 
+    const aportesNeto = calcularRubro('aporte'); 
     
     // 7. Dependencia de Financiamiento = Clearing Aportes + Clearing Financiamiento
     const dependenciaFinanciera = aportesNeto + financiamientoNeto;
 
     // 8. Caja Real Final = R. Operativo + Caja Comp. + Personal + Financiamiento Neto
-    // (Según imagen: Op + Comp + Pers + FinNeto)
+    // (Siguiendo la lógica de la imagen donde Personal y Financiamento son negativos y se suman al total)
     const cajaRealFinal = resultadoOperativo + cajaComprometida + personalNeto + financiamientoNeto;
 
     return { 
@@ -247,7 +250,7 @@ const App = () => {
     };
   }, [data, selectedMonth, currentTab]);
 
-  // --- CÁLCULO DE GRÁFICOS (EBITDA RESTAURADO Y SEPARADO) ---
+  // --- CÁLCULO DE GRÁFICOS ---
   const chartData = useMemo(() => {
     if (currentTab === 'economico') {
       const filtered = data.filter(d => (selectedBranch === 'Todas' || d.Sucursal === selectedBranch));
@@ -265,7 +268,6 @@ const App = () => {
         }));
         const ventasNetas = v - comis;
         const ebitda = ventasNetas - c - g;
-        // Equilibrio
         const margen = ventasNetas - c;
         const ratio = ventasNetas > 0 ? margen / ventasNetas : 0;
         const equilibrio = ratio > 0 ? g / ratio : 0;
@@ -378,9 +380,7 @@ const App = () => {
 
             {chartData && (
               <>
-                {/* FILA DE GRÁFICOS SEPARADOS (NUEVA ESTRUCTURA) */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  {/* Gráfico 1: Punto de Equilibrio */}
                   <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
                     <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><Scale size={16}/> Punto de Equilibrio vs Ventas</h3>
                     <ResponsiveContainer width="100%" height="80%">
@@ -395,7 +395,6 @@ const App = () => {
                     </ResponsiveContainer>
                   </div>
 
-                  {/* Gráfico 2: Tendencia EBITDA */}
                   <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
                     <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><Activity size={16}/> Evolución del EBITDA</h3>
                     <ResponsiveContainer width="100%" height="80%">
@@ -411,7 +410,6 @@ const App = () => {
                   </div>
                 </div>
 
-                {/* FILA INFERIOR: CASCADA */}
                 <div className="grid grid-cols-1 gap-8">
                   <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
                     <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><BarChart2 size={16}/> Cascada de Resultados (P&L)</h3>
