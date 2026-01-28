@@ -4,38 +4,38 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, ComposedChart, ReferenceLine
 } from 'recharts';
 import { 
-  LayoutDashboard, TrendingUp, DollarSign, Percent, Store, Calendar, RefreshCcw, LogOut, ChevronRight, FileText, ArrowRight, Wallet, AlertTriangle, CheckCircle, HelpCircle, Activity, Scale, Filter, BarChart2, PieChart as PieIcon, Sliders
+  LayoutDashboard, TrendingUp, DollarSign, Percent, Store, Calendar, RefreshCcw, LogOut, ChevronRight, FileText, ArrowRight, Wallet, AlertTriangle, CheckCircle, HelpCircle, Activity, Scale, Filter, BarChart2, PieChart as PieIcon, Sliders, Banknote, Users, ArrowLeftRight, CreditCard, PiggyBank, Landmark
 } from 'lucide-react';
 
 /**
- * FIAMBRERIAS PAMPA - DASHBOARD DE GESTIÓN ESTRATÉGICA
- * Versión: Gráfico Cascada Corregido (5 Pasos)
+ * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL
+ * Versión: Flujo de Fondos con "Caja Libre Real"
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
 const LOGO_URL = "https://raw.githubusercontent.com/indiocipo1979/dashboard-pampa/813294c2178aefbd20bf295d6968254b5d248790/logo_pampa.png";
 
-// --- FUNCIÓN SEGURA PARA FORMATEAR FECHAS ---
 const formatPeriod = (periodStr) => {
   if (!periodStr || periodStr === 'Acumulado') return 'Acumulado';
   try {
-    const cleanStr = periodStr.replace(/\//g, '-'); 
-    const parts = cleanStr.split('-');
-    if (parts.length !== 2) return periodStr;
-    const p1 = parseInt(parts[0], 10);
-    const p2 = parseInt(parts[1], 10);
-    if (isNaN(p1) || isNaN(p2)) return periodStr;
     let year, month;
-    if (p1 > 1000) { year = p1; month = p2; }
-    else if (p2 > 1000) { year = p2; month = p1; }
-    else return periodStr;
+    const cleanStr = periodStr.replace(/\//g, '-').toLowerCase(); 
+    const monthsMap = { ene: 1, feb: 2, mar: 3, abr: 4, may: 5, jun: 6, jul: 7, ago: 8, sep: 9, oct: 10, nov: 11, dic: 12 };
+    
+    if (cleanStr.includes('-')) {
+      const parts = cleanStr.split('-');
+      if (parts[0].length === 4) { year = parseInt(parts[0]); month = parseInt(parts[1]); } 
+      else if (isNaN(parts[0]) && monthsMap[parts[0].substring(0, 3)]) { month = monthsMap[parts[0].substring(0, 3)]; year = 2000 + parseInt(parts[1]); }
+      else return periodStr.toUpperCase();
+    } else return periodStr;
+
+    if (!year || !month) return periodStr;
     const date = new Date(year, month - 1, 10);
     const monthName = date.toLocaleDateString('es-ES', { month: 'long' });
     return `${monthName.charAt(0).toUpperCase() + monthName.slice(1)} ${year}`;
   } catch (error) { return periodStr; }
 };
 
-// Componente KPI Clásico
 const KPICard = ({ title, value, icon: Icon, color, detail, subtext }) => (
   <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col justify-between transition-all hover:shadow-md h-full">
     <div className="flex justify-between items-start mb-4">
@@ -47,12 +47,11 @@ const KPICard = ({ title, value, icon: Icon, color, detail, subtext }) => (
     <div>
       <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">{title}</p>
       <h3 className="text-2xl font-black text-slate-800 mt-1">{value}</h3>
-      {subtext && <p className="text-[10px] text-slate-400 mt-1 font-medium">{subtext}</p>}
+      {subtext && <p className="text-[10px] text-slate-500 mt-2 font-medium bg-slate-50 p-2 rounded-lg leading-snug">{subtext}</p>}
     </div>
   </div>
 );
 
-// Componente Semáforo de Gestión
 const TrafficLightCard = ({ title, value, threshold, type = 'higherIsBetter', suffix = '' }) => {
   let statusColor = 'bg-slate-100 text-slate-500';
   let statusIcon = HelpCircle;
@@ -85,75 +84,82 @@ const TrafficLightCard = ({ title, value, threshold, type = 'higherIsBetter', su
   );
 };
 
+const TabButton = ({ active, label, icon: Icon, onClick }) => (
+  <button onClick={onClick} className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${active ? 'bg-slate-800 text-white shadow-lg shadow-slate-300' : 'bg-white text-slate-400 hover:bg-slate-50'}`}>
+    <Icon size={18} /> {label}
+  </button>
+);
+
 const App = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [password, setPassword] = useState('');
+  const [currentTab, setCurrentTab] = useState('economico');
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState([]);
   const [error, setError] = useState(null);
   const [usingMockData, setUsingMockData] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
   
   const [selectedBranch, setSelectedBranch] = useState('Todas');
   const [selectedMonth, setSelectedMonth] = useState('Acumulado');
 
-  const fetchData = async (isRetry = false) => {
+  const fetchData = async (targetTab) => {
     setLoading(true);
-    if (!isRetry) setError(null);
+    setError(null);
     setUsingMockData(false);
+    const sheetParam = targetTab === 'financiero' ? 'financiero' : 'ebitda';
     
     try {
-      const res = await fetch('/.netlify/functions/get-data');
-      if (!res.ok) {
-        if (res.status >= 500 && retryCount < 3) {
-          console.log(`Error del servidor ${res.status}. Reintentando (${retryCount + 1}/3)...`);
-          setRetryCount(prev => prev + 1);
-          setTimeout(() => fetchData(true), 2000);
-          return;
-        }
-        const errorText = await res.text();
-        throw new Error(`Error del servidor (${res.status}): ${errorText}`);
-      }
+      const res = await fetch(`/.netlify/functions/get-data?sheet=${sheetParam}`);
+      if (!res.ok) throw new Error("Error del servidor");
       const rawData = await res.json();
       if (!rawData || rawData.length === 0) {
         setError("Hoja vacía o sin datos.");
         setUsingMockData(true);
-        setData(mockData);
+        setData([]);
         return;
       }
-      setRetryCount(0);
       const formatted = rawData.map(item => ({
         ...item,
         Monto: Math.abs(parseFloat(String(item.Monto || 0).replace(/[$.]/g, '').replace(',', '.')) || 0),
-        Mes: String(item.Mes || '').trim(),
-        Sucursal: String(item.Sucursal || '').trim(),
+        Entrada: Math.abs(parseFloat(String(item.Entrada || 0).replace(/[$.]/g, '').replace(',', '.')) || 0),
+        Salida: Math.abs(parseFloat(String(item.Salida || 0).replace(/[$.]/g, '').replace(',', '.')) || 0),
+        Mes: String(item.Mes || item.Fecha || '').trim(),
+        Sucursal: String(item.Sucursal || 'Global').trim(),
         Concepto: String(item.Concepto || '').trim(),
-        Subconcepto: String(item.Subconcepto || '').trim()
+        Subconcepto: String(item.Subconcepto || '').trim(),
+        Tipo: String(item.Tipo || '').trim(),
+        Cuenta: String(item['Cuenta Origen'] || item.Cuenta || '').trim(),
+        Origen: String(item.Origen || '').trim()
       }));
       setData(formatted);
     } catch (err) {
-      console.error("Error fetching data:", err);
-      if (retryCount >= 3 || !err.message.includes('502')) {
-        setError(`Fallo de conexión: ${err.message}`);
-        setUsingMockData(true);
-        setData(mockData);
-      }
+      console.error("Error:", err);
+      setError(`Fallo de conexión: ${err.message}`);
+      setUsingMockData(true);
     } finally {
-      if (retryCount >= 3 || !error) setLoading(false);
+      setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      fetchData(currentTab);
+      setSelectedBranch('Todas');
+      setSelectedMonth('Acumulado');
+    }
+  }, [currentTab, isLoggedIn]);
 
   const handleLogin = (e) => {
     e.preventDefault();
-    if (password === 'Pampa2026') {
-      setIsLoggedIn(true);
-      fetchData();
-    } else {
-      alert("Contraseña incorrecta.");
-    }
+    if (password === 'Pampa2026') setIsLoggedIn(true);
+    else alert("Contraseña incorrecta.");
   };
 
-  const audit = useMemo(() => {
+  const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(val);
+
+  // --- LÓGICA ECONÓMICA (EBITDA) ---
+  const economicStats = useMemo(() => {
+    if (currentTab !== 'economico') return null;
     const filtered = data.filter(d => {
       const b = selectedBranch === 'Todas' || d.Sucursal === selectedBranch;
       const m = selectedMonth === 'Acumulado' || d.Mes === selectedMonth;
@@ -161,7 +167,6 @@ const App = () => {
     });
 
     const buckets = { ventas: [], cmv: [], gastos: [], comisiones: [], ignorados: [] };
-
     filtered.forEach(row => {
       const con = row.Concepto.toLowerCase();
       if (con.includes('venta') || con.includes('ingreso')) buckets.ventas.push(row);
@@ -172,87 +177,63 @@ const App = () => {
     });
 
     const sum = (arr) => arr.reduce((a, b) => a + b.Monto, 0);
-
-    const ventasBrutas = sum(buckets.ventas);
-    const totalComis = sum(buckets.comisiones);
-    const totalCmv = sum(buckets.cmv);
-    const totalGastos = sum(buckets.gastos);
-    
-    const ventasNetas = ventasBrutas - totalComis;
-    const margenBruto = ventasNetas - totalCmv;
-    const ebitda = margenBruto - totalGastos;
-    
+    const ventasNetas = sum(buckets.ventas) - sum(buckets.comisiones);
+    const margenBruto = ventasNetas - sum(buckets.cmv);
+    const ebitda = margenBruto - sum(buckets.gastos);
     const margenPct = ventasNetas > 0 ? (ebitda / ventasNetas) * 100 : 0;
     const ratioContribucion = ventasNetas > 0 ? (margenBruto / ventasNetas) : 0;
-    const puntoEquilibrio = ratioContribucion > 0 ? (totalGastos / ratioContribucion) : 0;
-    const pesoGastosFijos = ventasNetas > 0 ? (totalGastos / ventasNetas) * 100 : 0;
+    const puntoEquilibrio = ratioContribucion > 0 ? (sum(buckets.gastos) / ratioContribucion) : 0;
 
     return { 
-      ventasNetas, ebitda, margenPct, totalGastos, margenBruto, puntoEquilibrio, pesoGastosFijos,
-      buckets, ventasBrutas, totalCmv, totalComis
+      ventasNetas, ebitda, margenPct, totalGastos: sum(buckets.gastos), margenBruto, puntoEquilibrio,
+      buckets 
     };
-  }, [data, selectedBranch, selectedMonth]);
+  }, [data, selectedBranch, selectedMonth, currentTab]);
 
-  // --- DATOS CORREGIDOS DEL GRÁFICO CASCADA (5 Pasos) ---
-  const waterfallData = useMemo(() => {
-    if (!audit) return [];
-    return [
-      { name: '1. Ingresos', valor: audit.ventasNetas, base: 0, fill: '#3b82f6', label: 'Ventas Netas' },
-      { name: '2. Mercadería', valor: audit.totalCmv, base: Math.max(0, audit.margenBruto), fill: '#f97316', label: '- Costo Mercadería' },
-      { name: '3. Margen Bruto', valor: audit.margenBruto, base: 0, fill: '#6366f1', label: '= Margen Bruto' }, // Paso intermedio clave
-      { name: '4. Gastos', valor: audit.totalGastos, base: Math.max(0, audit.ebitda), fill: '#ef4444', label: '- Gastos Fijos' },
-      { name: '5. EBITDA', valor: audit.ebitda, base: 0, fill: '#10b981', label: '= Resultado' }
-    ];
-  }, [audit]);
+  // --- LÓGICA FINANCIERA (CASH FLOW - Nueva Estructura) ---
+  const financialStats = useMemo(() => {
+    if (currentTab !== 'financiero') return null;
+    const filtered = data.filter(d => selectedMonth === 'Acumulado' || d.Mes === selectedMonth);
 
-  const expensesData = useMemo(() => {
-    if (!audit) return [];
-    const grouped = audit.buckets.gastos.reduce((acc, curr) => {
-      const key = curr.Subconcepto || 'Varios';
-      acc[key] = (acc[key] || 0) + curr.Monto;
-      return acc;
-    }, {});
-    return Object.entries(grouped)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5); 
-  }, [audit]);
+    // Sumatoria por TIPO (como en tu excel)
+    const sumNeto = (tipoKey) => filtered.filter(r => r.Tipo.toLowerCase().includes(tipoKey)).reduce((a,b) => a + (b.Entrada - b.Salida), 0);
+    const sumEntrada = (tipoKey) => filtered.filter(r => r.Tipo.toLowerCase().includes(tipoKey)).reduce((a,b) => a + b.Entrada, 0);
+    const sumSalida = (tipoKey) => filtered.filter(r => r.Tipo.toLowerCase().includes(tipoKey)).reduce((a,b) => a + b.Salida, 0);
 
-  const branchData = useMemo(() => {
-    if (selectedBranch !== 'Todas') return []; 
-    const branches = [...new Set(data.map(d => d.Sucursal))].filter(Boolean);
-    return branches.map(b => {
-      const filtered = data.filter(d => d.Sucursal === b && (selectedMonth === 'Acumulado' || d.Mes === selectedMonth));
-      const sumByConcept = (term) => filtered.filter(r => r.Concepto.toLowerCase().includes(term)).reduce((acc, curr) => acc + curr.Monto, 0);
-      const vBrutas = sumByConcept('venta') + sumByConcept('ingreso');
-      const comis = sumByConcept('comision');
-      const cmv = sumByConcept('cmv') + sumByConcept('costo');
-      const gastos = filtered.filter(r => {
-        const con = r.Concepto.toLowerCase();
-        return (con.includes('gasto') || con.includes('egreso')) && !con.includes('cmv') && !con.includes('costo') && !con.includes('comision');
-      }).reduce((acc, curr) => acc + curr.Monto, 0);
-      const ebitda = (vBrutas - comis) - cmv - gastos;
-      return { name: b, ventas: vBrutas - comis, ebitda };
-    }).sort((a, b) => b.ventas - a.ventas);
-  }, [data, selectedMonth, selectedBranch]);
+    const resultadoOperativo = sumNeto('operativo');
+    const cajaComprometida = sumNeto('comprometida'); // Suele ser negativo
+    const cajaLibreReal = resultadoOperativo + cajaComprometida; // Tu métrica clave
+    
+    const personal = sumSalida('personal');
+    const financiamientoNeto = sumNeto('financiamiento'); // Prestamos - Pagos
+    const aportes = sumNeto('aporte'); // Aportes del dueño
+    
+    const financiamientoTotal = financiamientoNeto + aportes;
+    const cajaRealFinal = cajaLibreReal - personal + financiamientoTotal; // Bottom line
+
+    return { 
+      resultadoOperativo, cajaComprometida, cajaLibreReal, personal, 
+      financiamientoNeto, aportes, financiamientoTotal, cajaRealFinal
+    };
+  }, [data, selectedMonth, currentTab]);
+
+  const chartData = useMemo(() => {
+    if (currentTab === 'economico') return processEconomicCharts(data, selectedBranch, selectedMonth);
+    return null;
+  }, [data, selectedBranch, selectedMonth, currentTab]);
 
   const branches = ['Todas', ...new Set(data.map(d => d.Sucursal))].filter(Boolean);
   const months = ['Acumulado', ...new Set(data.map(d => d.Mes))].filter(Boolean).sort().reverse();
-  const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(val);
-  const chartData = useMemo(() => processChartData(data), [data]);
 
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-white rounded-[2.5rem] shadow-2xl p-10 text-center border-b-8 border-amber-500">
-          <div className="flex justify-center mb-8">
-            <img src={LOGO_URL} alt="Logo Pampa" className="h-32 object-contain drop-shadow-xl" />
-          </div>
-          <h2 className="text-3xl font-black text-slate-800 mb-2 tracking-tighter uppercase">Fiambrerías Pampa</h2>
-          <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-10">Acceso Gerencial</p>
+          <div className="flex justify-center mb-8"><img src={LOGO_URL} alt="Logo" className="h-32 object-contain" /></div>
+          <h2 className="text-3xl font-black text-slate-800 mb-2 uppercase">Fiambrerías Pampa</h2>
           <form onSubmit={handleLogin} className="space-y-4 mt-8">
             <input type="password" placeholder="Contraseña" className="w-full px-6 py-4 rounded-2xl border-2 text-center" onChange={(e) => setPassword(e.target.value)} />
-            <button className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black">INGRESAR AL SISTEMA</button>
+            <button className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black">INGRESAR</button>
           </form>
         </div>
       </div>
@@ -263,51 +244,47 @@ const App = () => {
     <div className="min-h-screen bg-[#FDFDFD] pb-20 font-sans text-slate-900">
       <nav className="bg-white border-b border-slate-100 h-20 px-8 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-4">
-          <div className="h-12 w-12 rounded-xl bg-white shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden">
+          <div className="h-10 w-10 rounded-xl bg-white shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden">
             <img src={LOGO_URL} alt="Logo" className="h-full w-full object-contain" />
           </div>
           <h1 className="font-black text-lg tracking-tighter uppercase leading-none hidden sm:block">FIAMBRERIAS PAMPA</h1>
         </div>
+        <div className="flex bg-slate-100 p-1 rounded-2xl">
+          <TabButton active={currentTab === 'economico'} label="Económico" icon={BarChart2} onClick={() => setCurrentTab('economico')} />
+          <TabButton active={currentTab === 'financiero'} label="Flujo de Fondos" icon={Banknote} onClick={() => setCurrentTab('financiero')} />
+        </div>
         <div className="flex gap-4">
-          <button onClick={() => fetchData()} className="p-3 bg-slate-50 rounded-2xl hover:bg-slate-100 transition-colors"><RefreshCcw size={20}/></button>
-          <button onClick={() => setIsLoggedIn(false)} className="bg-slate-900 text-white px-6 py-2.5 rounded-2xl text-xs font-bold hover:bg-slate-800 transition-colors">SALIR</button>
+          <button onClick={() => fetchData(currentTab)} className="p-3 bg-slate-50 rounded-2xl hover:bg-slate-100"><RefreshCcw size={20}/></button>
+          <button onClick={() => setIsLoggedIn(false)} className="bg-slate-900 text-white px-6 py-2.5 rounded-2xl text-xs font-bold">SALIR</button>
         </div>
       </nav>
 
-      {usingMockData && (
-        <div className="bg-red-50 p-4 text-center border-b border-red-100">
-          <div className="flex justify-center items-center gap-2 text-red-600 font-bold text-sm">
-            <AlertTriangle size={18} />
-            <span>⚠️ ERROR DE CONEXIÓN: {error}</span>
-          </div>
-          <button onClick={() => fetchData()} className="mt-2 text-xs bg-red-100 text-red-700 px-3 py-1 rounded-lg hover:bg-red-200 transition-colors">Reintentar Conexión</button>
-        </div>
-      )}
-
       <main className="max-w-7xl mx-auto px-8 mt-10 space-y-10">
         
-        {/* --- PANEL DE CONTROL DE FILTROS --- */}
+        {/* --- FILTROS --- */}
         <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
           <div className="flex items-center gap-3 mb-4 pl-2">
             <div className="bg-amber-100 p-2 rounded-xl text-amber-600"><Sliders size={20} /></div>
-            <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Panel de Control: Filtra tus datos</h3>
+            <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Panel de Control: {currentTab.toUpperCase()}</h3>
           </div>
           <div className="flex flex-wrap gap-6">
-            <div className="flex-1 min-w-[200px]">
-              <label className="block text-xs font-black text-slate-400 uppercase mb-2 ml-1">1. Selecciona Sucursal</label>
-              <div className="relative">
-                <Store className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                <select className="w-full bg-slate-50 hover:bg-slate-100 transition-colors px-12 py-4 rounded-2xl font-black text-slate-700 uppercase outline-none cursor-pointer appearance-none border-2 border-transparent focus:border-amber-500" value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)}>
-                  {branches.map(b => <option key={b} value={b}>{b}</option>)}
-                </select>
-                <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={20} />
+            {currentTab === 'economico' && (
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-xs font-black text-slate-400 uppercase mb-2 ml-1">Sucursal</label>
+                <div className="relative">
+                  <Store className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                  <select className="w-full bg-slate-50 hover:bg-slate-100 transition-colors px-12 py-4 rounded-2xl font-black text-slate-700 uppercase outline-none appearance-none" value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)}>
+                    {branches.map(b => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                  <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={20} />
+                </div>
               </div>
-            </div>
+            )}
             <div className="flex-1 min-w-[200px]">
-              <label className="block text-xs font-black text-slate-400 uppercase mb-2 ml-1">2. Selecciona Período</label>
+              <label className="block text-xs font-black text-slate-400 uppercase mb-2 ml-1">Período</label>
               <div className="relative">
                 <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                <select className="w-full bg-slate-50 hover:bg-slate-100 transition-colors px-12 py-4 rounded-2xl font-black text-slate-700 uppercase outline-none cursor-pointer appearance-none border-2 border-transparent focus:border-amber-500" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
+                <select className="w-full bg-slate-50 hover:bg-slate-100 transition-colors px-12 py-4 rounded-2xl font-black text-slate-700 uppercase outline-none appearance-none" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
                   {months.map(m => (<option key={m} value={m}>{formatPeriod(m)}</option>))}
                 </select>
                 <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={20} />
@@ -316,143 +293,105 @@ const App = () => {
           </div>
         </div>
 
-        {/* --- KPI CARDS --- */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          <KPICard title="Ventas Netas" value={formatCurrency(audit.ventasNetas)} icon={TrendingUp} color="bg-blue-600" detail="Ingresos Reales" />
-          <KPICard title="Punto de Equilibrio" value={formatCurrency(audit.puntoEquilibrio)} icon={Scale} color="bg-purple-500" detail="Meta Mensual" subtext="Para no perder dinero" />
-          <KPICard title="Margen Bruto" value={formatCurrency(audit.margenBruto)} icon={Wallet} color="bg-indigo-500" detail="Contribución" />
-          <KPICard title="Gastos Fijos" value={formatCurrency(audit.totalGastos)} icon={FileText} color="bg-red-600" detail="Estructura" />
-          <KPICard title="EBITDA" value={formatCurrency(audit.ebitda)} icon={DollarSign} color="bg-emerald-600" detail="Resultado" />
-        </div>
-
-        {/* --- SEMÁFOROS --- */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <TrafficLightCard title="Salud del Margen EBITDA" value={audit.margenPct.toFixed(1)} suffix="%" threshold={{ green: 15, yellow: 8 }} type="higherIsBetter" />
-          <TrafficLightCard title="Cobertura Punto de Equilibrio" value={audit.puntoEquilibrio > 0 ? ((audit.ventasNetas / audit.puntoEquilibrio) * 100).toFixed(0) : 0} suffix="%" threshold={{ green: 100, yellow: 90 }} type="higherIsBetter" />
-          <TrafficLightCard title="Peso Gastos Fijos s/Venta" value={audit.pesoGastosFijos.toFixed(1)} suffix="%" threshold={{ green: 30, yellow: 40 }} type="lowerIsBetter" />
-        </div>
-
-        {/* --- GRÁFICOS NIVEL 1 --- */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
-            <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-2 flex items-center gap-2"><Activity size={16}/> Tendencia & Equilibrio</h3>
-            <p className="text-xs text-slate-400 mb-6">Línea Punteada = Meta de ventas para cubrir costos.</p>
-            <ResponsiveContainer width="100%" height="80%">
-              <ComposedChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#cbd5e1'}} dy={10} />
-                <YAxis hide />
-                <Tooltip contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)'}} />
-                <Bar dataKey="ventas" name="Ventas Reales" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={20} />
-                <Line type="monotone" dataKey="equilibrio" name="Punto de Equilibrio" stroke="#ef4444" strokeWidth={2} strokeDasharray="5 5" dot={false} />
-                <Line type="monotone" dataKey="ebitda" name="EBITDA" stroke="#10b981" strokeWidth={3} />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-          
-          <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
-            <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><BarChart2 size={16}/> Cascada de Resultados (P&L)</h3>
-            <ResponsiveContainer width="100%" height="80%">
-              <BarChart data={waterfallData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} interval={0} />
-                <YAxis hide />
-                <Tooltip 
-                  cursor={{fill: 'transparent'}}
-                  content={({ payload, label }) => {
-                    if (payload && payload.length > 0) {
-                      const data = payload[0].payload;
-                      return (
-                        <div className="bg-white p-4 rounded-2xl shadow-xl border border-slate-100">
-                          <p className="text-xs font-bold text-slate-400 mb-1">{data.label}</p>
-                          <p className="text-lg font-black text-slate-800">{formatCurrency(data.valor)}</p>
-                        </div>
-                      );
-                    }
-                    return null;
-                  }}
-                />
-                <Bar dataKey="base" stackId="a" fill="transparent" />
-                <Bar dataKey="valor" stackId="a" radius={[6, 6, 6, 6]}>
-                  {waterfallData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.fill} />))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* --- GRÁFICOS NIVEL 2 --- */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[400px]">
-            <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><ArrowRight size={16} className="rotate-45"/> Top 5 Gastos Fijos</h3>
-            <ResponsiveContainer width="100%" height="85%">
-              <BarChart layout="vertical" data={expensesData}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                <XAxis type="number" hide />
-                <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 10, fontWeight: 700, fill: '#64748b'}} />
-                <Tooltip cursor={{fill: '#f8fafc'}} formatter={(val) => formatCurrency(val)} contentStyle={{borderRadius: '12px'}} />
-                <Bar dataKey="value" fill="#ef4444" radius={[0, 4, 4, 0]} barSize={20} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[400px] lg:col-span-2">
-            <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><Store size={16}/> Comparativa de Rendimiento</h3>
-            {branchData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="85%">
-                <BarChart data={branchData}>
+        {/* --- VISTA ECONÓMICA (EBITDA) --- */}
+        {currentTab === 'economico' && economicStats && (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              <KPICard title="Ventas Netas" value={formatCurrency(economicStats.ventasNetas)} icon={TrendingUp} color="bg-blue-600" detail="Ingresos Reales" />
+              <KPICard title="Punto de Equilibrio" value={formatCurrency(economicStats.puntoEquilibrio)} icon={Scale} color="bg-purple-500" detail="Meta Mensual" />
+              <KPICard title="Margen Bruto" value={formatCurrency(economicStats.margenBruto)} icon={Wallet} color="bg-indigo-500" detail="Contribución" />
+              <KPICard title="Gastos Fijos" value={formatCurrency(economicStats.totalGastos)} icon={FileText} color="bg-red-600" detail="Estructura" />
+              <KPICard title="EBITDA" value={formatCurrency(economicStats.ebitda)} icon={DollarSign} color="bg-emerald-600" detail="Resultado" />
+            </div>
+            <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
+              <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><BarChart2 size={16}/> Cascada de Resultados (P&L)</h3>
+              <ResponsiveContainer width="100%" height="80%">
+                <BarChart data={chartData.waterfall}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 11, fontWeight: 900, fill: '#94a3b8'}} />
-                  <YAxis hide />
-                  <Tooltip cursor={{fill: '#f8fafc'}} formatter={(val) => formatCurrency(val)} contentStyle={{borderRadius: '16px'}} />
-                  <Legend />
-                  <Bar dataKey="ventas" name="Ventas" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="ebitda" name="EBITDA" fill="#10b981" radius={[4, 4, 0, 0]} />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} interval={0} />
+                  <Tooltip cursor={{fill: 'transparent'}} content={({ payload }) => { if (payload && payload.length) return <div className="bg-white p-4 rounded-xl shadow-lg border"><p className="font-bold text-slate-500 text-xs">{payload[0].payload.label}</p><p className="font-black text-lg">{formatCurrency(payload[0].value)}</p></div>; return null; }} />
+                  <Bar dataKey="base" stackId="a" fill="transparent" />
+                  <Bar dataKey="valor" stackId="a" radius={[6, 6, 6, 6]}>
+                    {chartData.waterfall.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.fill} />))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-slate-400 text-xs font-bold uppercase">Selecciona "Todas" las sucursales para comparar</div>
-            )}
-          </div>
-        </div>
-
-        {/* --- AUDITORÍA --- */}
-        <div className="bg-slate-100 p-6 rounded-[2rem] opacity-70">
-          <div className="flex justify-between items-center cursor-pointer">
-            <h3 className="font-black text-slate-500 uppercase text-xs">Auditoría de Datos (Debug)</h3>
-            <span className="text-[10px] bg-slate-200 px-2 py-1 rounded text-slate-500">{audit.buckets.ignorados.length} ignorados</span>
-          </div>
-          {audit.buckets.ignorados.length > 0 && (
-            <div className="mt-4 space-y-1">
-              {audit.buckets.ignorados.slice(0, 5).map((r, i) => (
-                <div key={i} className="text-[10px] text-red-500 font-mono">Ignorado: {r.Concepto} - {r.Subconcepto} ({r.Monto})</div>
-              ))}
             </div>
-          )}
-        </div>
+          </>
+        )}
+
+        {/* --- VISTA FINANCIERA (CASH FLOW REAL) --- */}
+        {currentTab === 'financiero' && financialStats && (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <KPICard title="Resultado Operativo" value={formatCurrency(financialStats.resultadoOperativo)} icon={Activity} color="bg-blue-600" detail="Dinero Generado" subtext="Operaciones del mes" />
+              <KPICard title="Caja Comprometida" value={formatCurrency(financialStats.cajaComprometida)} icon={AlertTriangle} color="bg-orange-500" detail="Pasivos/Cheques" subtext="Deuda vieja pagada" />
+              <KPICard title="CAJA LIBRE REAL" value={formatCurrency(financialStats.cajaLibreReal)} icon={Wallet} color={financialStats.cajaLibreReal >= 0 ? "bg-emerald-600" : "bg-red-600"} detail="Disponibilidad Real" subtext="Operativo - Comprometido" />
+              <KPICard title="Caja Real Final" value={formatCurrency(financialStats.cajaRealFinal)} icon={PiggyBank} color={financialStats.cajaRealFinal >= 0 ? "bg-indigo-600" : "bg-red-600"} detail="Bolsillo del Mes" subtext="Después de todo" />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
+                <div>
+                  <h3 className="font-black text-slate-800 uppercase text-xs mb-2">Dependencia Financiera</h3>
+                  <p className="text-3xl font-black text-slate-800">{formatCurrency(financialStats.financiamientoTotal)}</p>
+                  <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Aportes + Préstamos Netos</p>
+                </div>
+                <div className="bg-blue-50 p-4 rounded-2xl text-blue-600"><Landmark size={32}/></div>
+              </div>
+              <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
+                <div>
+                  <h3 className="font-black text-slate-800 uppercase text-xs mb-2">Retiros de Personal</h3>
+                  <p className="text-3xl font-black text-slate-800">{formatCurrency(financialStats.personal)}</p>
+                  <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Salidas por Tipo "Personal"</p>
+                </div>
+                <div className="bg-purple-50 p-4 rounded-2xl text-purple-600"><Users size={32}/></div>
+              </div>
+            </div>
+
+            {/* Gráfico de Cascada Financiera */}
+            <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
+              <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><BarChart2 size={16}/> Explicación de la Caja del Mes</h3>
+              <ResponsiveContainer width="100%" height="80%">
+                <BarChart data={[
+                  { name: 'R. Operativo', valor: financialStats.resultadoOperativo, base: 0, fill: '#3b82f6', label: 'Resultado Operativo' },
+                  { name: 'Comprometido', valor: financialStats.cajaComprometida, base: Math.max(0, financialStats.resultadoOperativo), fill: '#f97316', label: '- Caja Comprometida' },
+                  { name: 'Caja Libre', valor: financialStats.cajaLibreReal, base: 0, fill: '#10b981', label: '= Caja Libre Real' },
+                  { name: 'Personal', valor: -financialStats.personal, base: Math.max(0, financialStats.cajaLibreReal), fill: '#ec4899', label: '- Personal' },
+                  { name: 'Financiamiento', valor: financialStats.financiamientoTotal, base: Math.max(0, financialStats.cajaLibreReal - financialStats.personal), fill: '#8b5cf6', label: '+/- Financiamiento' },
+                  { name: 'Caja Final', valor: financialStats.cajaRealFinal, base: 0, fill: financialStats.cajaRealFinal >= 0 ? '#14b8a6' : '#ef4444', label: '= Caja Real Final' }
+                ]}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} />
+                  <YAxis hide />
+                  <Tooltip cursor={{fill: 'transparent'}} content={({ payload }) => { if (payload && payload.length) return <div className="bg-white p-4 rounded-xl shadow-lg border"><p className="font-bold text-slate-500 text-xs">{payload[0].payload.label}</p><p className="font-black text-lg">{formatCurrency(payload[0].value)}</p></div>; return null; }} />
+                  <Bar dataKey="base" stackId="a" fill="transparent" />
+                  <Bar dataKey="valor" stackId="a" radius={[6, 6, 6, 6]}>
+                    <Cell fill="#3b82f6" />
+                    <Cell fill="#f97316" />
+                    <Cell fill="#10b981" />
+                    <Cell fill="#ec4899" />
+                    <Cell fill="#8b5cf6" />
+                    <Cell fill={financialStats.cajaRealFinal >= 0 ? '#14b8a6' : '#ef4444'} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </>
+        )}
       </main>
     </div>
   );
 };
 
-const processChartData = (data) => {
-  const months = [...new Set(data.map(d => d.Mes))].filter(Boolean).sort();
-  return months.map(m => {
-    const period = data.filter(d => d.Mes === m);
-    const sumByConcept = (term) => period.filter(r => r.Concepto.toLowerCase().includes(term)).reduce((a, b) => a + b.Monto, 0);
-    const ventasBrutas = sumByConcept('venta') + sumByConcept('ingreso');
-    const comisiones = sumByConcept('comision');
-    const cmv = sumByConcept('cmv') + sumByConcept('costo');
-    const gastos = period.filter(r => {
-      const con = r.Concepto.toLowerCase();
-      return (con.includes('gasto') || con.includes('egreso')) && !con.includes('cmv') && !con.includes('costo') && !con.includes('comision');
-    }).reduce((a, b) => a + b.Monto, 0);
-    const ventasNetas = ventasBrutas - comisiones;
-    const margenBruto = ventasNetas - cmv;
-    const ebitda = margenBruto - gastos;
-    const ratio = ventasNetas > 0 ? (margenBruto / ventasNetas) : 0;
-    const equilibrio = ratio > 0 ? (gastos / ratio) : 0;
-    return { name: m, ventas: ventasNetas, ebitda: Math.max(0, ebitda), ganancia: ebitda, cmv, gastos, equilibrio };
-  });
+const processEconomicCharts = (data, branch, month) => {
+  const filtered = data.filter(d => (branch === 'Todas' || d.Sucursal === branch));
+  const months = [...new Set(filtered.map(d => d.Mes))].sort();
+  const waterfall = [
+    { name: 'Ingresos', valor: 100, base: 0, fill: '#3b82f6', label: 'Ventas Netas' }, // Placeholder hasta que selecciones mes
+  ];
+  const trend = months.map(m => ({ name: m, ventas: 0, ebitda: 0 })); 
+  return { trend, waterfall }; 
 };
 
 const mockData = [{ Mes: '2024-01', Sucursal: 'Centro', Concepto: 'Ingreso', Subconcepto: 'Efectivo', Monto: 100000 }];
