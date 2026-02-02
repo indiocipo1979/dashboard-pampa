@@ -9,11 +9,24 @@ import {
 
 /**
  * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL
- * Versión: Incluye KPI Margen Bruto % en Semáforos
+ * Versión: UI/UX Mejorada (Diseño Limpio + Animaciones)
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
 const LOGO_URL = "https://raw.githubusercontent.com/indiocipo1979/dashboard-pampa/813294c2178aefbd20bf295d6968254b5d248790/logo_pampa.png";
+
+// --- ESTILOS INYECTADOS PARA ANIMACIONES ---
+const Styles = () => (
+  <style>{`
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in {
+      animation: fadeIn 0.6s ease-out forwards;
+    }
+  `}</style>
+);
 
 // Función segura para limpiar montos
 const cleanMonto = (val) => {
@@ -48,7 +61,7 @@ const formatPeriod = (periodStr) => {
 };
 
 const KPICard = ({ title, value, icon: Icon, color, detail, subtext }) => (
-  <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col justify-between transition-all hover:shadow-md h-full">
+  <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col justify-between transition-all hover:shadow-md hover:-translate-y-1 h-full duration-300">
     <div className="flex justify-between items-start mb-4">
       <div className={`p-3 rounded-2xl ${color} bg-opacity-10`}>
         <Icon className={`w-6 h-6 ${color.replace('bg-', 'text-')}`} />
@@ -63,40 +76,72 @@ const KPICard = ({ title, value, icon: Icon, color, detail, subtext }) => (
   </div>
 );
 
+// Componente Semáforo de Gestión (REDDISEÑADO - Más Limpio)
 const TrafficLightCard = ({ title, value, threshold, type = 'higherIsBetter', suffix = '' }) => {
-  let statusColor = 'bg-slate-100 text-slate-500';
+  let borderColor = 'border-slate-200';
+  let iconColor = 'text-slate-400';
+  let iconBg = 'bg-slate-50';
   let statusIcon = HelpCircle;
   let statusText = 'Neutro';
+  
   const numValue = parseFloat(value);
+  let state = 'neutral';
   
   if (type === 'higherIsBetter') {
-    if (numValue >= threshold.green) { statusColor = 'bg-emerald-100 text-emerald-700'; statusIcon = CheckCircle; statusText = 'Saludable'; }
-    else if (numValue >= threshold.yellow) { statusColor = 'bg-amber-100 text-amber-700'; statusIcon = AlertTriangle; statusText = 'Atención'; }
-    else { statusColor = 'bg-red-100 text-red-700'; statusIcon = AlertTriangle; statusText = 'Crítico'; }
+    if (numValue >= threshold.green) state = 'good';
+    else if (numValue >= threshold.yellow) state = 'warning';
+    else state = 'bad';
   } else { 
-    if (numValue <= threshold.green) { statusColor = 'bg-emerald-100 text-emerald-700'; statusIcon = CheckCircle; statusText = 'Óptimo'; }
-    else if (numValue <= threshold.yellow) { statusColor = 'bg-amber-100 text-amber-700'; statusIcon = AlertTriangle; statusText = 'Cuidado'; }
-    else { statusColor = 'bg-red-100 text-red-700'; statusIcon = AlertTriangle; statusText = 'Excesivo'; }
+    if (numValue <= threshold.green) state = 'good';
+    else if (numValue <= threshold.yellow) state = 'warning';
+    else state = 'bad';
   }
+
+  // Configuración de Estilos según estado
+  switch(state) {
+    case 'good':
+      borderColor = 'border-emerald-500';
+      iconColor = 'text-emerald-600';
+      iconBg = 'bg-emerald-50';
+      statusIcon = CheckCircle;
+      statusText = type === 'lowerIsBetter' ? 'Óptimo' : 'Saludable';
+      break;
+    case 'warning':
+      borderColor = 'border-amber-500';
+      iconColor = 'text-amber-600';
+      iconBg = 'bg-amber-50';
+      statusIcon = AlertTriangle;
+      statusText = type === 'lowerIsBetter' ? 'Cuidado' : 'Atención';
+      break;
+    case 'bad':
+      borderColor = 'border-red-500';
+      iconColor = 'text-red-600';
+      iconBg = 'bg-red-50';
+      statusIcon = AlertTriangle;
+      statusText = type === 'lowerIsBetter' ? 'Excesivo' : 'Crítico';
+      break;
+  }
+
   const Icon = statusIcon;
+
   return (
-    <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
+    <div className={`bg-white p-5 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between border-l-[6px] ${borderColor} transition-all hover:shadow-md`}>
       <div>
         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{title}</p>
         <div className="flex items-baseline gap-1">
           <h3 className="text-xl font-black text-slate-800">{numValue}{suffix}</h3>
         </div>
+        <span className={`text-[10px] font-bold uppercase mt-1 block ${iconColor}`}>{statusText}</span>
       </div>
-      <div className={`px-4 py-2 rounded-xl flex items-center gap-2 ${statusColor}`}>
-        <Icon size={16} />
-        <span className="text-[10px] font-black uppercase tracking-wide">{statusText}</span>
+      <div className={`h-12 w-12 rounded-full flex items-center justify-center ${iconBg} ${iconColor}`}>
+        <Icon size={24} />
       </div>
     </div>
   );
 };
 
 const TabButton = ({ active, label, icon: Icon, onClick }) => (
-  <button onClick={onClick} className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${active ? 'bg-slate-800 text-white shadow-lg shadow-slate-300' : 'bg-white text-slate-400 hover:bg-slate-50'}`}>
+  <button onClick={onClick} className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${active ? 'bg-slate-800 text-white shadow-lg shadow-slate-300 transform scale-105' : 'bg-white text-slate-400 hover:bg-slate-50'}`}>
     <Icon size={18} /> {label}
   </button>
 );
@@ -197,7 +242,6 @@ const App = () => {
     const ratioContribucion = ventasNetas > 0 ? (margenBruto / ventasNetas) : 0;
     const puntoEquilibrio = ratioContribucion > 0 ? (sum(buckets.gastos) / ratioContribucion) : 0;
     const pesoGastosFijos = ventasNetas > 0 ? (sum(buckets.gastos) / ventasNetas) * 100 : 0;
-    // Cálculo nuevo para la tarjeta
     const margenBrutoPct = ventasNetas > 0 ? (margenBruto / ventasNetas) * 100 : 0;
 
     return { 
@@ -211,7 +255,6 @@ const App = () => {
     if (currentTab !== 'financiero') return null;
     const filtered = data.filter(d => selectedMonth === 'Acumulado' || d.Mes === selectedMonth);
 
-    // Helper: Suma Entradas - Salidas explícitamente para un tipo
     const calcularRubro = (textoTipo) => {
       const items = filtered.filter(r => r.Tipo && r.Tipo.toLowerCase().includes(textoTipo));
       const totalEntradas = items.reduce((sum, item) => sum + (item.Entrada || 0), 0);
@@ -219,31 +262,17 @@ const App = () => {
       return totalEntradas - totalSalidas; 
     };
 
-    // 1. Resultado Operativo
     const resultadoOperativo = calcularRubro('operativo');
-    
-    // 2. Caja Comprometida
     const cajaComprometida = calcularRubro('comprometida'); 
-    
-    // 3. Caja Libre Real
     const cajaLibreReal = resultadoOperativo + cajaComprometida; 
-    
-    // 4. Personal
     const personalNeto = calcularRubro('personal');
     const personalSalida = filtered.filter(r => r.Tipo && r.Tipo.toLowerCase().includes('personal')).reduce((a,b) => a + (b.Salida || 0), 0);
-
-    // 5. Financiamiento Neto
     const financiamientoNeto = calcularRubro('financiamiento'); 
-    
-    // 6. Aportes Neto
     const aportesNeto = calcularRubro('aporte'); 
     
-    // 7. Dependencia Financiera CORREGIDA
-    const dependenciaFinanciera = aportesNeto < 0 
-      ? financiamientoNeto + aportesNeto 
-      : financiamientoNeto - aportesNeto;
+    // Dependencia Financiera CORREGIDA: Suma algebraica
+    const dependenciaFinanciera = financiamientoNeto + aportesNeto;
 
-    // 8. Caja Real Final
     const cajaRealFinal = resultadoOperativo + cajaComprometida + personalNeto + financiamientoNeto;
 
     return { 
@@ -271,7 +300,6 @@ const App = () => {
         }));
         const ventasNetas = v - comis;
         const ebitda = ventasNetas - c - g;
-        // Equilibrio
         const margen = ventasNetas - c;
         const ratio = ventasNetas > 0 ? margen / ventasNetas : 0;
         const equilibrio = ratio > 0 ? g / ratio : 0;
@@ -300,7 +328,8 @@ const App = () => {
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-[2.5rem] shadow-2xl p-10 text-center border-b-8 border-amber-500">
+        <Styles />
+        <div className="max-w-md w-full bg-white rounded-[2.5rem] shadow-2xl p-10 text-center border-b-8 border-amber-500 animate-fade-in">
           <div className="flex justify-center mb-8"><img src={LOGO_URL} alt="Logo" className="h-32 object-contain" /></div>
           <h2 className="text-3xl font-black text-slate-800 mb-2 uppercase">Fiambrerías Pampa</h2>
           <form onSubmit={handleLogin} className="space-y-4 mt-8">
@@ -314,6 +343,7 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] pb-20 font-sans text-slate-900">
+      <Styles />
       <nav className="bg-white border-b border-slate-100 h-20 px-8 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-4">
           <div className="h-10 w-10 rounded-xl bg-white shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden">
@@ -331,8 +361,9 @@ const App = () => {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-8 mt-10 space-y-10">
+      <main className="max-w-7xl mx-auto px-8 mt-10 space-y-10 animate-fade-in">
         
+        {/* --- FILTROS --- */}
         <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
           <div className="flex items-center gap-3 mb-4 pl-2">
             <div className="bg-amber-100 p-2 rounded-xl text-amber-600"><Sliders size={20} /></div>
@@ -375,7 +406,7 @@ const App = () => {
               <KPICard title="EBITDA" value={formatCurrency(economicStats.ebitda)} icon={DollarSign} color="bg-emerald-600" detail="Resultado" />
             </div>
 
-            {/* SEMÁFOROS CON NUEVO KPI */}
+            {/* SEMÁFOROS (RESTAURADOS Y MEJORADOS) */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <TrafficLightCard title="Margen Bruto %" value={economicStats.margenBrutoPct.toFixed(1)} suffix="%" threshold={{ green: 40, yellow: 30 }} type="higherIsBetter" />
               <TrafficLightCard title="Salud del Margen EBITDA" value={economicStats.margenPct.toFixed(1)} suffix="%" threshold={{ green: 15, yellow: 8 }} type="higherIsBetter" />
@@ -448,33 +479,33 @@ const App = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* 1. Financiamiento Neto */}
-              <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
+              <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between border-l-[6px] border-indigo-500">
                 <div>
                   <h3 className="font-black text-slate-800 uppercase text-xs mb-2">Financiamiento Neto</h3>
                   <p className={`text-3xl font-black ${financialStats.financiamientoNeto >= 0 ? 'text-slate-800' : 'text-red-600'}`}>{formatCurrency(financialStats.financiamientoNeto)}</p>
                   <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Préstamos - Pagos</p>
                 </div>
-                <div className="bg-indigo-50 p-4 rounded-2xl text-indigo-600"><CreditCard size={32}/></div>
+                <div className="bg-indigo-50 p-4 rounded-full text-indigo-600"><CreditCard size={24}/></div>
               </div>
 
               {/* 2. Retiros Personales */}
-              <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
+              <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between border-l-[6px] border-purple-500">
                 <div>
                   <h3 className="font-black text-slate-800 uppercase text-xs mb-2">Retiros Personales</h3>
                   <p className={`text-3xl font-black ${financialStats.personalNeto < 0 ? 'text-red-600' : 'text-slate-800'}`}>{formatCurrency(financialStats.personalNeto)}</p>
                   <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Salidas por Tipo "Personal"</p>
                 </div>
-                <div className="bg-purple-50 p-4 rounded-2xl text-purple-600"><Users size={32}/></div>
+                <div className="bg-purple-50 p-4 rounded-full text-purple-600"><Users size={24}/></div>
               </div>
 
               {/* 3. Dependencia Financiera */}
-              <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
+              <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between border-l-[6px] border-blue-500">
                 <div>
                   <h3 className="font-black text-slate-800 uppercase text-xs mb-2">Dependencia Financiera</h3>
                   <p className={`text-3xl font-black ${financialStats.dependenciaFinanciera < 0 ? 'text-red-600' : 'text-slate-800'}`}>{formatCurrency(financialStats.dependenciaFinanciera)}</p>
                   <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Aportes + Financiamiento Neto</p>
                 </div>
-                <div className="bg-blue-50 p-4 rounded-2xl text-blue-600"><Landmark size={32}/></div>
+                <div className="bg-blue-50 p-4 rounded-full text-blue-600"><Landmark size={24}/></div>
               </div>
             </div>
 
