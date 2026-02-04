@@ -9,7 +9,7 @@ import {
 
 /**
  * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL
- * Versión: Ordenamiento Financiero Corregido & Tooltip Fix
+ * Versión: Reordenamiento Tarjetas Financieras (Caja Real 6 -> Dependencia 7)
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
@@ -285,7 +285,7 @@ const App = () => {
 
     return { 
       resultadoOperativo, cajaComprometida, cajaLibreReal, 
-      personalNeto,
+      personalNeto, personalSalida,
       financiamientoNeto, aportesNeto, dependenciaFinanciera, cajaRealFinal
     };
   }, [data, selectedMonth, currentTab]);
@@ -486,11 +486,11 @@ const App = () => {
               <KPICard title="Financiamiento Neto" value={formatCurrency(financialStats.financiamientoNeto)} icon={CreditCard} color={financialStats.financiamientoNeto >= 0 ? "bg-indigo-600" : "bg-red-600"} detail="4" subtext="Préstamos - Pagos" />
             </div>
 
-            {/* GRID INFERIOR DE 3 TARJETAS: Retiros -> Dependencia -> Final */}
+            {/* GRID INFERIOR DE 3 TARJETAS: Retiros -> Caja Final -> Dependencia */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <KPICard title="Retiros Personales" value={formatCurrency(financialStats.personalNeto)} icon={Users} color="bg-purple-600" detail="5" subtext="Salidas Personales" />
-              <KPICard title="Dependencia Financiera" value={formatCurrency(financialStats.dependenciaFinanciera)} icon={Landmark} color={financialStats.dependenciaFinanciera < 0 ? "bg-red-600" : "bg-slate-800"} detail="6" subtext="Aportes + Financiamiento" />
-              <KPICard title="Caja Real Final" value={formatCurrency(financialStats.cajaRealFinal)} icon={PiggyBank} color={financialStats.cajaRealFinal >= 0 ? "bg-emerald-600" : "bg-red-600"} detail="7" subtext="Bolsillo del Mes" />
+              <KPICard title="Caja Real Final" value={formatCurrency(financialStats.cajaRealFinal)} icon={PiggyBank} color={financialStats.cajaRealFinal >= 0 ? "bg-emerald-600" : "bg-red-600"} detail="6" subtext="Bolsillo del Mes" />
+              <KPICard title="Dependencia Financiera" value={formatCurrency(financialStats.dependenciaFinanciera)} icon={Landmark} color={financialStats.dependenciaFinanciera < 0 ? "bg-red-600" : "bg-slate-800"} detail="7" subtext="Aportes + Financiamiento" />
             </div>
 
             <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
