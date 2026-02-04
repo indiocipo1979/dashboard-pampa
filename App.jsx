@@ -9,7 +9,7 @@ import {
 
 /**
  * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL
- * Versión: Reordenamiento Tarjetas Financieras (Caja Real 6 -> Dependencia 7)
+ * Versión: Producción Estable (Anti-Crash + Lógica Financiera Corregida)
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
@@ -89,33 +89,13 @@ const TrafficLightCard = ({ title, value, threshold, type = 'higherIsBetter', su
     else state = 'bad';
   }
 
-  // Configuración de Estilos según estado
   switch(state) {
-    case 'good':
-      borderColor = 'border-emerald-500';
-      iconColor = 'text-emerald-600';
-      iconBg = 'bg-emerald-50';
-      statusIcon = CheckCircle;
-      statusText = type === 'lowerIsBetter' ? 'Óptimo' : 'Saludable';
-      break;
-    case 'warning':
-      borderColor = 'border-amber-500';
-      iconColor = 'text-amber-600';
-      iconBg = 'bg-amber-50';
-      statusIcon = AlertTriangle;
-      statusText = type === 'lowerIsBetter' ? 'Cuidado' : 'Atención';
-      break;
-    case 'bad':
-      borderColor = 'border-red-500';
-      iconColor = 'text-red-600';
-      iconBg = 'bg-red-50';
-      statusIcon = AlertTriangle;
-      statusText = type === 'lowerIsBetter' ? 'Excesivo' : 'Crítico';
-      break;
+    case 'good': borderColor = 'border-emerald-500'; iconColor = 'text-emerald-600'; iconBg = 'bg-emerald-50'; statusIcon = CheckCircle; statusText = type === 'lowerIsBetter' ? 'Óptimo' : 'Saludable'; break;
+    case 'warning': borderColor = 'border-amber-500'; iconColor = 'text-amber-600'; iconBg = 'bg-amber-50'; statusIcon = AlertTriangle; statusText = type === 'lowerIsBetter' ? 'Cuidado' : 'Atención'; break;
+    case 'bad': borderColor = 'border-red-500'; iconColor = 'text-red-600'; iconBg = 'bg-red-50'; statusIcon = AlertTriangle; statusText = type === 'lowerIsBetter' ? 'Excesivo' : 'Crítico'; break;
   }
 
   const Icon = statusIcon;
-
   return (
     <div className={`bg-white p-5 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between border-l-[6px] ${borderColor} transition-all hover:shadow-md`}>
       <div>
@@ -125,9 +105,7 @@ const TrafficLightCard = ({ title, value, threshold, type = 'higherIsBetter', su
         </div>
         <span className={`text-[10px] font-bold uppercase mt-1 block ${iconColor}`}>{statusText}</span>
       </div>
-      <div className={`h-12 w-12 rounded-full flex items-center justify-center ${iconBg} ${iconColor}`}>
-        <Icon size={24} />
-      </div>
+      <div className={`h-12 w-12 rounded-full flex items-center justify-center ${iconBg} ${iconColor}`}><Icon size={24} /></div>
     </div>
   );
 };
@@ -164,7 +142,7 @@ const App = () => {
       if (!rawData || rawData.length === 0) {
         setError("Hoja vacía o sin datos.");
         setUsingMockData(true);
-        setData([]);
+        setData(mockData); // Fallback a datos de prueba seguros
         return;
       }
       
@@ -186,6 +164,7 @@ const App = () => {
       console.error("Error:", err);
       setError(`Fallo de conexión: ${err.message}`);
       setUsingMockData(true);
+      setData(mockData); // Fallback a datos de prueba seguros
     } finally {
       setLoading(false);
     }
@@ -218,7 +197,7 @@ const App = () => {
 
     const buckets = { ventas: [], cmv: [], gastos: [], comisiones: [], ignorados: [] };
     filtered.forEach(row => {
-      const con = row.Concepto.toLowerCase();
+      const con = (row.Concepto || '').toLowerCase();
       if (con.includes('venta') || con.includes('ingreso')) buckets.ventas.push(row);
       else if (con.includes('comision')) buckets.comisiones.push(row);
       else if (con.includes('cmv') || con.includes('costo') || con.includes('mercaderia')) buckets.cmv.push(row);
@@ -226,7 +205,7 @@ const App = () => {
       else buckets.ignorados.push(row);
     });
 
-    const sum = (arr) => arr.reduce((a, b) => a + b.Monto, 0);
+    const sum = (arr) => arr.reduce((a, b) => a + (b.Monto || 0), 0);
     const ventasNetas = sum(buckets.ventas) - sum(buckets.comisiones);
     const margenBruto = ventasNetas - sum(buckets.cmv);
     const ebitda = margenBruto - sum(buckets.gastos);
@@ -242,50 +221,38 @@ const App = () => {
     };
   }, [data, selectedBranch, selectedMonth, currentTab]);
 
-  // --- LÓGICA FINANCIERA (CASH FLOW - Corregida v3) ---
+  // --- LÓGICA FINANCIERA (CASH FLOW - Corregida v4) ---
   const financialStats = useMemo(() => {
     if (currentTab !== 'financiero') return null;
     const filtered = data.filter(d => selectedMonth === 'Acumulado' || d.Mes === selectedMonth);
 
-    // Helper: Suma Entradas - Salidas explícitamente para un tipo
     const calcularRubro = (textoTipo) => {
+      // Protección: verificar que 'Tipo' exista antes de toLowerCase
       const items = filtered.filter(r => r.Tipo && r.Tipo.toLowerCase().includes(textoTipo));
       const totalEntradas = items.reduce((sum, item) => sum + (item.Entrada || 0), 0);
       const totalSalidas = items.reduce((sum, item) => sum + (item.Salida || 0), 0);
       return totalEntradas - totalSalidas; 
     };
 
-    // 1. Resultado Operativo
     const resultadoOperativo = calcularRubro('operativo');
-    
-    // 2. Caja Comprometida
     const cajaComprometida = calcularRubro('comprometida'); 
-    
-    // 3. Caja Libre Real
     const cajaLibreReal = resultadoOperativo + cajaComprometida; 
-    
-    // 4. Personal
     const personalNeto = calcularRubro('personal');
-    // Para mostrar retiros personales en negativo si es salida
-    const personalMostrar = personalNeto; 
-
-    // 5. Financiamiento Neto
+    // const personalSalida = filtered.filter(r => r.Tipo && r.Tipo.toLowerCase().includes('personal')).reduce((a,b) => a + (b.Salida || 0), 0);
     const financiamientoNeto = calcularRubro('financiamiento'); 
-    
-    // 6. Aportes Neto
     const aportesNeto = calcularRubro('aporte'); 
     
-    // 7. Dependencia Financiera CORREGIDA (Lógica Algebraica)
+    // Dependencia Financiera CORREGIDA (Lógica Condicional Solicitada)
+    // Si Aportes es Negativo (<0), se suma. Si es Positivo (>=0), se resta.
     const dependenciaFinanciera = aportesNeto < 0 
       ? financiamientoNeto + aportesNeto 
       : financiamientoNeto - aportesNeto;
 
-    // 8. Caja Real Final
     const cajaRealFinal = resultadoOperativo + cajaComprometida + personalNeto + financiamientoNeto;
 
     return { 
       resultadoOperativo, cajaComprometida, cajaLibreReal, 
-      personalNeto, personalSalida,
+      personalNeto,
       financiamientoNeto, aportesNeto, dependenciaFinanciera, cajaRealFinal
     };
   }, [data, selectedMonth, currentTab]);
@@ -298,17 +265,17 @@ const App = () => {
       
       const trend = months.map(m => {
         const p = filtered.filter(d => d.Mes === m);
-        const sumMonto = (arr) => arr.reduce((a, b) => a + b.Monto, 0);
-        const v = sumMonto(p.filter(r => r.Concepto.toLowerCase().includes('venta') || r.Concepto.toLowerCase().includes('ingreso')));
-        const comis = sumMonto(p.filter(r => r.Concepto.toLowerCase().includes('comision')));
-        const c = sumMonto(p.filter(r => r.Concepto.toLowerCase().includes('cmv')));
+        const sumMonto = (arr) => arr.reduce((a, b) => a + (b.Monto || 0), 0);
+        // Safely check strings
+        const v = sumMonto(p.filter(r => r.Concepto && (r.Concepto.toLowerCase().includes('venta') || r.Concepto.toLowerCase().includes('ingreso'))));
+        const comis = sumMonto(p.filter(r => r.Concepto && r.Concepto.toLowerCase().includes('comision')));
+        const c = sumMonto(p.filter(r => r.Concepto && r.Concepto.toLowerCase().includes('cmv')));
         const g = sumMonto(p.filter(r => {
-           const con = r.Concepto.toLowerCase();
+           const con = (r.Concepto || '').toLowerCase();
            return (con.includes('gasto') || con.includes('fijo')) && !con.includes('cmv') && !con.includes('comision');
         }));
         const ventasNetas = v - comis;
         const ebitda = ventasNetas - c - g;
-        // Equilibrio
         const margen = ventasNetas - c;
         const ratio = ventasNetas > 0 ? margen / ventasNetas : 0;
         const equilibrio = ratio > 0 ? g / ratio : 0;
@@ -316,7 +283,7 @@ const App = () => {
       });
 
       const stats = economicStats || { ventasNetas: 0, margenBruto: 0, totalGastos: 0, ebitda: 0, buckets: { cmv: [] } };
-      const cmvTotal = stats.buckets?.cmv ? stats.buckets.cmv.reduce((a,b)=>a+b.Monto,0) : 0;
+      const cmvTotal = stats.buckets?.cmv ? stats.buckets.cmv.reduce((a,b)=>a+(b.Monto||0),0) : 0;
 
       const waterfall = [
         { name: '1. Ingresos', valor: stats.ventasNetas, base: 0, fill: '#3b82f6', label: 'Ventas Netas' },
@@ -414,7 +381,7 @@ const App = () => {
               <KPICard title="EBITDA" value={formatCurrency(economicStats.ebitda)} icon={DollarSign} color="bg-emerald-600" detail="Resultado" />
             </div>
 
-            {/* SEMÁFOROS (RESTAURADOS Y MEJORADOS) */}
+            {/* SEMÁFOROS */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <TrafficLightCard title="Margen Bruto %" value={economicStats.margenBrutoPct.toFixed(1)} suffix="%" threshold={{ green: 40, yellow: 30 }} type="higherIsBetter" />
               <TrafficLightCard title="Salud del Margen EBITDA" value={economicStats.margenPct.toFixed(1)} suffix="%" threshold={{ green: 15, yellow: 8 }} type="higherIsBetter" />
@@ -539,7 +506,7 @@ const App = () => {
   );
 };
 
-const mockData = [{ Mes: '2024-01', Sucursal: 'Centro', Concepto: 'Ingreso', Subconcepto: 'Efectivo', Monto: 100000 }];
+const mockData = [{ Mes: '2024-01', Sucursal: 'Centro', Concepto: 'Ingreso', Subconcepto: 'Efectivo', Monto: 100000, Entrada: 100000, Salida: 0, Tipo: 'Operativo' }];
 const root = createRoot(document.getElementById('root'));
 root.render(<App />);
 
