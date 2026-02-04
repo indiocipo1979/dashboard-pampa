@@ -9,7 +9,7 @@ import {
 
 /**
  * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL
- * Versión: Dependencia Financiera Algebraica (Financiamiento - Aportes)
+ * Versión: Producción (Lógica Financiera Corregida y Código Limpio)
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
@@ -48,7 +48,7 @@ const formatPeriod = (periodStr) => {
 };
 
 const KPICard = ({ title, value, icon: Icon, color, detail, subtext }) => (
-  <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col justify-between transition-all hover:shadow-md hover:-translate-y-1 h-full duration-300">
+  <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col justify-between transition-all hover:shadow-md h-full">
     <div className="flex justify-between items-start mb-4">
       <div className={`p-3 rounded-2xl ${color} bg-opacity-10`}>
         <Icon className={`w-6 h-6 ${color.replace('bg-', 'text-')}`} />
@@ -63,65 +63,33 @@ const KPICard = ({ title, value, icon: Icon, color, detail, subtext }) => (
   </div>
 );
 
-// Componente Semáforo de Gestión (REDDISEÑADO - Más Limpio)
 const TrafficLightCard = ({ title, value, threshold, type = 'higherIsBetter', suffix = '' }) => {
-  let borderColor = 'border-slate-200';
-  let iconColor = 'text-slate-400';
-  let iconBg = 'bg-slate-50';
+  let statusColor = 'bg-slate-100 text-slate-500';
   let statusIcon = HelpCircle;
   let statusText = 'Neutro';
-  
   const numValue = parseFloat(value);
-  let state = 'neutral';
   
   if (type === 'higherIsBetter') {
-    if (numValue >= threshold.green) state = 'good';
-    else if (numValue >= threshold.yellow) state = 'warning';
-    else state = 'bad';
+    if (numValue >= threshold.green) { statusColor = 'bg-emerald-100 text-emerald-700'; statusIcon = CheckCircle; statusText = 'Saludable'; }
+    else if (numValue >= threshold.yellow) { statusColor = 'bg-amber-100 text-amber-700'; statusIcon = AlertTriangle; statusText = 'Atención'; }
+    else { statusColor = 'bg-red-100 text-red-700'; statusIcon = AlertTriangle; statusText = 'Crítico'; }
   } else { 
-    if (numValue <= threshold.green) state = 'good';
-    else if (numValue <= threshold.yellow) state = 'warning';
-    else state = 'bad';
+    if (numValue <= threshold.green) { statusColor = 'bg-emerald-100 text-emerald-700'; statusIcon = CheckCircle; statusText = 'Óptimo'; }
+    else if (numValue <= threshold.yellow) { statusColor = 'bg-amber-100 text-amber-700'; statusIcon = AlertTriangle; statusText = 'Cuidado'; }
+    else { statusColor = 'bg-red-100 text-red-700'; statusIcon = AlertTriangle; statusText = 'Excesivo'; }
   }
-
-  // Configuración de Estilos según estado
-  switch(state) {
-    case 'good':
-      borderColor = 'border-emerald-500';
-      iconColor = 'text-emerald-600';
-      iconBg = 'bg-emerald-50';
-      statusIcon = CheckCircle;
-      statusText = type === 'lowerIsBetter' ? 'Óptimo' : 'Saludable';
-      break;
-    case 'warning':
-      borderColor = 'border-amber-500';
-      iconColor = 'text-amber-600';
-      iconBg = 'bg-amber-50';
-      statusIcon = AlertTriangle;
-      statusText = type === 'lowerIsBetter' ? 'Cuidado' : 'Atención';
-      break;
-    case 'bad':
-      borderColor = 'border-red-500';
-      iconColor = 'text-red-600';
-      iconBg = 'bg-red-50';
-      statusIcon = AlertTriangle;
-      statusText = type === 'lowerIsBetter' ? 'Excesivo' : 'Crítico';
-      break;
-  }
-
   const Icon = statusIcon;
-
   return (
-    <div className={`bg-white p-5 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between border-l-[6px] ${borderColor} transition-all hover:shadow-md`}>
+    <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
       <div>
         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{title}</p>
         <div className="flex items-baseline gap-1">
           <h3 className="text-xl font-black text-slate-800">{numValue}{suffix}</h3>
         </div>
-        <span className={`text-[10px] font-bold uppercase mt-1 block ${iconColor}`}>{statusText}</span>
       </div>
-      <div className={`h-12 w-12 rounded-full flex items-center justify-center ${iconBg} ${iconColor}`}>
-        <Icon size={24} />
+      <div className={`px-4 py-2 rounded-xl flex items-center gap-2 ${statusColor}`}>
+        <Icon size={16} />
+        <span className="text-[10px] font-black uppercase tracking-wide">{statusText}</span>
       </div>
     </div>
   );
@@ -237,7 +205,7 @@ const App = () => {
     };
   }, [data, selectedBranch, selectedMonth, currentTab]);
 
-  // --- LÓGICA FINANCIERA (CASH FLOW - Corregida v4) ---
+  // --- LÓGICA FINANCIERA (CASH FLOW - Lógica Condicional Aplicada) ---
   const financialStats = useMemo(() => {
     if (currentTab !== 'financiero') return null;
     const filtered = data.filter(d => selectedMonth === 'Acumulado' || d.Mes === selectedMonth);
@@ -247,7 +215,7 @@ const App = () => {
       const items = filtered.filter(r => r.Tipo && r.Tipo.toLowerCase().includes(textoTipo));
       const totalEntradas = items.reduce((sum, item) => sum + (item.Entrada || 0), 0);
       const totalSalidas = items.reduce((sum, item) => sum + (item.Salida || 0), 0);
-      return totalEntradas - totalSalidas; // Devuelve el neto (Entradas - Salidas)
+      return totalEntradas - totalSalidas; 
     };
 
     // 1. Resultado Operativo
@@ -269,12 +237,14 @@ const App = () => {
     // 6. Aportes Neto
     const aportesNeto = calcularRubro('aporte'); 
     
-    // 7. Dependencia Financiera CORREGIDA (Lógica Algebraica)
-    // Formula: Financiamiento Neto - Aportes Neto
-    // Si FinNeto es negativo (deuda) y Aportes es positivo (inyección), el resultado será un número negativo más grande (mayor deuda total).
-    const dependenciaFinanciera = financiamientoNeto - aportesNeto;
+    // 7. Dependencia Financiera (Lógica Condicional Solicitada)
+    // Si Aportes es Negativo (<0), se suma. Si es Positivo (>=0), se resta.
+    const dependenciaFinanciera = aportesNeto < 0 
+      ? financiamientoNeto + aportesNeto 
+      : financiamientoNeto - aportesNeto;
 
     // 8. Caja Real Final
+    // Se mantiene: Operativo + Comprometida + Personal + Financiamiento Neto
     const cajaRealFinal = resultadoOperativo + cajaComprometida + personalNeto + financiamientoNeto;
 
     return { 
@@ -331,8 +301,7 @@ const App = () => {
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-        <Styles />
-        <div className="max-w-md w-full bg-white rounded-[2.5rem] shadow-2xl p-10 text-center border-b-8 border-amber-500 animate-fade-in">
+        <div className="max-w-md w-full bg-white rounded-[2.5rem] shadow-2xl p-10 text-center border-b-8 border-amber-500">
           <div className="flex justify-center mb-8"><img src={LOGO_URL} alt="Logo" className="h-32 object-contain" /></div>
           <h2 className="text-3xl font-black text-slate-800 mb-2 uppercase">Fiambrerías Pampa</h2>
           <form onSubmit={handleLogin} className="space-y-4 mt-8">
@@ -346,7 +315,6 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] pb-20 font-sans text-slate-900">
-      <Styles />
       <nav className="bg-white border-b border-slate-100 h-20 px-8 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-4">
           <div className="h-10 w-10 rounded-xl bg-white shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden">
@@ -364,7 +332,7 @@ const App = () => {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-8 mt-10 space-y-10 animate-fade-in">
+      <main className="max-w-7xl mx-auto px-8 mt-10 space-y-10">
         
         <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
           <div className="flex items-center gap-3 mb-4 pl-2">
@@ -408,7 +376,7 @@ const App = () => {
               <KPICard title="EBITDA" value={formatCurrency(economicStats.ebitda)} icon={DollarSign} color="bg-emerald-600" detail="Resultado" />
             </div>
 
-            {/* SEMÁFOROS (RESTAURADOS Y MEJORADOS) */}
+            {/* SEMÁFOROS */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <TrafficLightCard title="Margen Bruto %" value={economicStats.margenBrutoPct.toFixed(1)} suffix="%" threshold={{ green: 40, yellow: 30 }} type="higherIsBetter" />
               <TrafficLightCard title="Salud del Margen EBITDA" value={economicStats.margenPct.toFixed(1)} suffix="%" threshold={{ green: 15, yellow: 8 }} type="higherIsBetter" />
@@ -480,6 +448,7 @@ const App = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* 1. Financiamiento Neto */}
               <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between border-l-[6px] border-indigo-500">
                 <div>
                   <h3 className="font-black text-slate-800 uppercase text-xs mb-2">Financiamiento Neto</h3>
@@ -489,6 +458,7 @@ const App = () => {
                 <div className="bg-indigo-50 p-4 rounded-full text-indigo-600"><CreditCard size={24}/></div>
               </div>
 
+              {/* 2. Retiros Personales */}
               <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between border-l-[6px] border-purple-500">
                 <div>
                   <h3 className="font-black text-slate-800 uppercase text-xs mb-2">Retiros Personales</h3>
@@ -498,6 +468,7 @@ const App = () => {
                 <div className="bg-purple-50 p-4 rounded-full text-purple-600"><Users size={24}/></div>
               </div>
 
+              {/* 3. Dependencia Financiera */}
               <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between border-l-[6px] border-blue-500">
                 <div>
                   <h3 className="font-black text-slate-800 uppercase text-xs mb-2">Dependencia Financiera</h3>
