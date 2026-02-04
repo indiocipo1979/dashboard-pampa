@@ -9,7 +9,7 @@ import {
 
 /**
  * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL
- * Versión: Producción Estable (Anti-Crash + Lógica Financiera Corregida)
+ * Versión: Gauge Charts (Velocímetros) para KPIs Porcentuales
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
@@ -48,7 +48,6 @@ const formatPeriod = (periodStr) => {
 };
 
 const KPICard = ({ title, value, icon: Icon, color, detail, subtext }) => {
-  // Lógica de color: Si el texto contiene un guion "-", es negativo -> ROJO. Si no, NEGRO.
   const isNegative = typeof value === 'string' && value.includes('-');
   const valueColor = isNegative ? 'text-red-600' : 'text-slate-800';
 
@@ -69,43 +68,50 @@ const KPICard = ({ title, value, icon: Icon, color, detail, subtext }) => {
   );
 };
 
-const TrafficLightCard = ({ title, value, threshold, type = 'higherIsBetter', suffix = '' }) => {
-  let borderColor = 'border-slate-200';
-  let iconColor = 'text-slate-400';
-  let iconBg = 'bg-slate-50';
-  let statusIcon = HelpCircle;
-  let statusText = 'Neutro';
+// --- NUEVO COMPONENTE: GAUGE CHART (VELOCÍMETRO) ---
+const GaugeCard = ({ title, value, max = 100, type = 'higherIsBetter', suffix = '' }) => {
+  const numValue = Math.max(0, Math.min(parseFloat(value), max));
+  // Rotación: 0% = 0deg (Izquierda), 100% = 180deg (Derecha)
+  const rotation = (numValue / max) * 180;
   
-  const numValue = parseFloat(value);
-  let state = 'neutral';
-  
-  if (type === 'higherIsBetter') {
-    if (numValue >= threshold.green) state = 'good';
-    else if (numValue >= threshold.yellow) state = 'warning';
-    else state = 'bad';
-  } else { 
-    if (numValue <= threshold.green) state = 'good';
-    else if (numValue <= threshold.yellow) state = 'warning';
-    else state = 'bad';
-  }
+  // Colores de segmentos (Izquierda -> Centro -> Derecha)
+  const colors = type === 'higherIsBetter' 
+    ? ['#ef4444', '#f59e0b', '#10b981'] // Rojo -> Amarillo -> Verde
+    : ['#10b981', '#f59e0b', '#ef4444']; // Verde -> Amarillo -> Rojo
 
-  switch(state) {
-    case 'good': borderColor = 'border-emerald-500'; iconColor = 'text-emerald-600'; iconBg = 'bg-emerald-50'; statusIcon = CheckCircle; statusText = type === 'lowerIsBetter' ? 'Óptimo' : 'Saludable'; break;
-    case 'warning': borderColor = 'border-amber-500'; iconColor = 'text-amber-600'; iconBg = 'bg-amber-50'; statusIcon = AlertTriangle; statusText = type === 'lowerIsBetter' ? 'Cuidado' : 'Atención'; break;
-    case 'bad': borderColor = 'border-red-500'; iconColor = 'text-red-600'; iconBg = 'bg-red-50'; statusIcon = AlertTriangle; statusText = type === 'lowerIsBetter' ? 'Excesivo' : 'Crítico'; break;
-  }
-
-  const Icon = statusIcon;
   return (
-    <div className={`bg-white p-5 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between border-l-[6px] ${borderColor} transition-all hover:shadow-md`}>
-      <div>
-        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{title}</p>
-        <div className="flex items-baseline gap-1">
-          <h3 className="text-xl font-black text-slate-800">{numValue}{suffix}</h3>
+    <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col items-center justify-between h-full relative overflow-hidden hover:shadow-md transition-all">
+      <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 z-10 w-full text-center">{title}</h3>
+      
+      <div className="relative w-48 h-24 mb-2">
+        <svg viewBox="0 0 100 50" className="w-full h-full overflow-visible">
+          {/* Segmento 1 (0-33%) */}
+          <path d="M 10 50 A 40 40 0 0 1 30 15.36" fill="none" stroke={colors[0]} strokeWidth="12" strokeLinecap="butt" />
+          {/* Segmento 2 (33-66%) */}
+          <path d="M 30 15.36 A 40 40 0 0 1 70 15.36" fill="none" stroke={colors[1]} strokeWidth="12" strokeLinecap="butt" />
+          {/* Segmento 3 (66-100%) */}
+          <path d="M 70 15.36 A 40 40 0 0 1 90 50" fill="none" stroke={colors[2]} strokeWidth="12" strokeLinecap="butt" />
+          
+          {/* Aguja */}
+          <g transform={`rotate(${rotation} 50 50)`} style={{ transition: 'transform 1s cubic-bezier(0.4, 0, 0.2, 1)' }}>
+             {/* Línea de la aguja apuntando a la izquierda (0 grados visuales) */}
+             <line x1="50" y1="50" x2="15" y2="50" stroke="#1e293b" strokeWidth="4" strokeLinecap="round" />
+             <circle cx="50" cy="50" r="6" fill="#1e293b" />
+          </g>
+        </svg>
+        
+        {/* Valor al centro */}
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 text-center">
+           <span className="text-2xl font-black text-slate-800">{value}{suffix}</span>
         </div>
-        <span className={`text-[10px] font-bold uppercase mt-1 block ${iconColor}`}>{statusText}</span>
       </div>
-      <div className={`h-12 w-12 rounded-full flex items-center justify-center ${iconBg} ${iconColor}`}><Icon size={24} /></div>
+      
+      {/* Escala */}
+      <div className="flex justify-between w-full px-8 mt-4 text-[9px] font-bold text-slate-300">
+         <span>0{suffix}</span>
+         <span>{max/2}{suffix}</span>
+         <span>{max}{suffix}</span>
+      </div>
     </div>
   );
 };
@@ -142,7 +148,7 @@ const App = () => {
       if (!rawData || rawData.length === 0) {
         setError("Hoja vacía o sin datos.");
         setUsingMockData(true);
-        setData(mockData); // Fallback a datos de prueba seguros
+        setData([]);
         return;
       }
       
@@ -164,7 +170,6 @@ const App = () => {
       console.error("Error:", err);
       setError(`Fallo de conexión: ${err.message}`);
       setUsingMockData(true);
-      setData(mockData); // Fallback a datos de prueba seguros
     } finally {
       setLoading(false);
     }
@@ -197,7 +202,7 @@ const App = () => {
 
     const buckets = { ventas: [], cmv: [], gastos: [], comisiones: [], ignorados: [] };
     filtered.forEach(row => {
-      const con = (row.Concepto || '').toLowerCase();
+      const con = row.Concepto.toLowerCase();
       if (con.includes('venta') || con.includes('ingreso')) buckets.ventas.push(row);
       else if (con.includes('comision')) buckets.comisiones.push(row);
       else if (con.includes('cmv') || con.includes('costo') || con.includes('mercaderia')) buckets.cmv.push(row);
@@ -221,13 +226,12 @@ const App = () => {
     };
   }, [data, selectedBranch, selectedMonth, currentTab]);
 
-  // --- LÓGICA FINANCIERA (CASH FLOW - Corregida v4) ---
+  // --- LÓGICA FINANCIERA (CASH FLOW) ---
   const financialStats = useMemo(() => {
     if (currentTab !== 'financiero') return null;
     const filtered = data.filter(d => selectedMonth === 'Acumulado' || d.Mes === selectedMonth);
 
     const calcularRubro = (textoTipo) => {
-      // Protección: verificar que 'Tipo' exista antes de toLowerCase
       const items = filtered.filter(r => r.Tipo && r.Tipo.toLowerCase().includes(textoTipo));
       const totalEntradas = items.reduce((sum, item) => sum + (item.Entrada || 0), 0);
       const totalSalidas = items.reduce((sum, item) => sum + (item.Salida || 0), 0);
@@ -238,12 +242,10 @@ const App = () => {
     const cajaComprometida = calcularRubro('comprometida'); 
     const cajaLibreReal = resultadoOperativo + cajaComprometida; 
     const personalNeto = calcularRubro('personal');
-    // const personalSalida = filtered.filter(r => r.Tipo && r.Tipo.toLowerCase().includes('personal')).reduce((a,b) => a + (b.Salida || 0), 0);
     const financiamientoNeto = calcularRubro('financiamiento'); 
     const aportesNeto = calcularRubro('aporte'); 
     
     // Dependencia Financiera CORREGIDA (Lógica Condicional Solicitada)
-    // Si Aportes es Negativo (<0), se suma. Si es Positivo (>=0), se resta.
     const dependenciaFinanciera = aportesNeto < 0 
       ? financiamientoNeto + aportesNeto 
       : financiamientoNeto - aportesNeto;
@@ -266,7 +268,6 @@ const App = () => {
       const trend = months.map(m => {
         const p = filtered.filter(d => d.Mes === m);
         const sumMonto = (arr) => arr.reduce((a, b) => a + (b.Monto || 0), 0);
-        // Safely check strings
         const v = sumMonto(p.filter(r => r.Concepto && (r.Concepto.toLowerCase().includes('venta') || r.Concepto.toLowerCase().includes('ingreso'))));
         const comis = sumMonto(p.filter(r => r.Concepto && r.Concepto.toLowerCase().includes('comision')));
         const c = sumMonto(p.filter(r => r.Concepto && r.Concepto.toLowerCase().includes('cmv')));
@@ -381,12 +382,12 @@ const App = () => {
               <KPICard title="EBITDA" value={formatCurrency(economicStats.ebitda)} icon={DollarSign} color="bg-emerald-600" detail="Resultado" />
             </div>
 
-            {/* SEMÁFOROS */}
+            {/* GAUGE CARDS (VELOCÍMETROS) */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <TrafficLightCard title="Margen Bruto %" value={economicStats.margenBrutoPct.toFixed(1)} suffix="%" threshold={{ green: 40, yellow: 30 }} type="higherIsBetter" />
-              <TrafficLightCard title="Salud del Margen EBITDA" value={economicStats.margenPct.toFixed(1)} suffix="%" threshold={{ green: 15, yellow: 8 }} type="higherIsBetter" />
-              <TrafficLightCard title="Cobertura Punto de Equilibrio" value={economicStats.puntoEquilibrio > 0 ? ((economicStats.ventasNetas / economicStats.puntoEquilibrio) * 100).toFixed(0) : 0} suffix="%" threshold={{ green: 100, yellow: 90 }} type="higherIsBetter" />
-              <TrafficLightCard title="Peso Gastos Fijos s/Venta" value={economicStats.pesoGastosFijos.toFixed(1)} suffix="%" threshold={{ green: 30, yellow: 40 }} type="lowerIsBetter" />
+              <GaugeCard title="Margen Bruto %" value={economicStats.margenBrutoPct.toFixed(1)} suffix="%" max={70} type="higherIsBetter" />
+              <GaugeCard title="Salud del Margen EBITDA" value={economicStats.margenPct.toFixed(1)} suffix="%" max={30} type="higherIsBetter" />
+              <GaugeCard title="Cobertura Punto de Equilibrio" value={economicStats.puntoEquilibrio > 0 ? ((economicStats.ventasNetas / economicStats.puntoEquilibrio) * 100).toFixed(0) : 0} suffix="%" max={200} type="higherIsBetter" />
+              <GaugeCard title="Peso Gastos Fijos s/Venta" value={economicStats.pesoGastosFijos.toFixed(1)} suffix="%" max={60} type="lowerIsBetter" />
             </div>
 
             {chartData && (
@@ -442,10 +443,9 @@ const App = () => {
           </>
         )}
 
-        {/* --- VISTA FINANCIERA (CASH FLOW REAL - ORDENADA) --- */}
+        {/* --- VISTA FINANCIERA (CASH FLOW REAL) --- */}
         {currentTab === 'financiero' && financialStats && (
           <>
-            {/* GRID SUPERIOR DE 4 TARJETAS: Operativo -> Comprometida -> Libre -> Neto */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <KPICard title="Resultado Operativo" value={formatCurrency(financialStats.resultadoOperativo)} icon={Activity} color="bg-blue-600" detail="1" subtext="Operaciones del mes" />
               <KPICard title="Caja Comprometida" value={formatCurrency(financialStats.cajaComprometida)} icon={AlertTriangle} color="bg-orange-500" detail="2" subtext="Deuda vieja pagada" />
@@ -453,7 +453,6 @@ const App = () => {
               <KPICard title="Financiamiento Neto" value={formatCurrency(financialStats.financiamientoNeto)} icon={CreditCard} color={financialStats.financiamientoNeto >= 0 ? "bg-indigo-600" : "bg-red-600"} detail="4" subtext="Préstamos - Pagos" />
             </div>
 
-            {/* GRID INFERIOR DE 3 TARJETAS: Retiros -> Caja Final -> Dependencia */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <KPICard title="Retiros Personales" value={formatCurrency(financialStats.personalNeto)} icon={Users} color="bg-purple-600" detail="5" subtext="Salidas Personales" />
               <KPICard title="Caja Real Final" value={formatCurrency(financialStats.cajaRealFinal)} icon={PiggyBank} color={financialStats.cajaRealFinal >= 0 ? "bg-emerald-600" : "bg-red-600"} detail="6" subtext="Bolsillo del Mes" />
@@ -476,7 +475,6 @@ const App = () => {
                   <YAxis hide />
                   <Tooltip cursor={{fill: 'transparent'}} content={({ payload }) => { 
                     if (payload && payload.length) {
-                      // Corrección Tooltip: Usamos el valor real del dato, no el de la barra base
                       const data = payload[0].payload;
                       return (
                         <div className="bg-white p-4 rounded-xl shadow-lg border">
