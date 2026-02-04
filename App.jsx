@@ -9,24 +9,11 @@ import {
 
 /**
  * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL
- * Versión: UI/UX Mejorada (Diseño Limpio + Animaciones)
+ * Versión: Dependencia Financiera Algebraica (Financiamiento - Aportes)
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
 const LOGO_URL = "https://raw.githubusercontent.com/indiocipo1979/dashboard-pampa/813294c2178aefbd20bf295d6968254b5d248790/logo_pampa.png";
-
-// --- ESTILOS INYECTADOS PARA ANIMACIONES ---
-const Styles = () => (
-  <style>{`
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    .animate-fade-in {
-      animation: fadeIn 0.6s ease-out forwards;
-    }
-  `}</style>
-);
 
 // Función segura para limpiar montos
 const cleanMonto = (val) => {
@@ -250,29 +237,44 @@ const App = () => {
     };
   }, [data, selectedBranch, selectedMonth, currentTab]);
 
-  // --- LÓGICA FINANCIERA (CASH FLOW - Corregida v3) ---
+  // --- LÓGICA FINANCIERA (CASH FLOW - Corregida v4) ---
   const financialStats = useMemo(() => {
     if (currentTab !== 'financiero') return null;
     const filtered = data.filter(d => selectedMonth === 'Acumulado' || d.Mes === selectedMonth);
 
+    // Helper: Suma Entradas - Salidas explícitamente para un tipo
     const calcularRubro = (textoTipo) => {
       const items = filtered.filter(r => r.Tipo && r.Tipo.toLowerCase().includes(textoTipo));
       const totalEntradas = items.reduce((sum, item) => sum + (item.Entrada || 0), 0);
       const totalSalidas = items.reduce((sum, item) => sum + (item.Salida || 0), 0);
-      return totalEntradas - totalSalidas; 
+      return totalEntradas - totalSalidas; // Devuelve el neto (Entradas - Salidas)
     };
 
+    // 1. Resultado Operativo
     const resultadoOperativo = calcularRubro('operativo');
+    
+    // 2. Caja Comprometida
     const cajaComprometida = calcularRubro('comprometida'); 
+    
+    // 3. Caja Libre Real
     const cajaLibreReal = resultadoOperativo + cajaComprometida; 
+    
+    // 4. Personal
     const personalNeto = calcularRubro('personal');
     const personalSalida = filtered.filter(r => r.Tipo && r.Tipo.toLowerCase().includes('personal')).reduce((a,b) => a + (b.Salida || 0), 0);
+
+    // 5. Financiamiento Neto
     const financiamientoNeto = calcularRubro('financiamiento'); 
+    
+    // 6. Aportes Neto
     const aportesNeto = calcularRubro('aporte'); 
     
-    // Dependencia Financiera CORREGIDA: Suma algebraica
-    const dependenciaFinanciera = financiamientoNeto + aportesNeto;
+    // 7. Dependencia Financiera CORREGIDA (Lógica Algebraica)
+    // Formula: Financiamiento Neto - Aportes Neto
+    // Si FinNeto es negativo (deuda) y Aportes es positivo (inyección), el resultado será un número negativo más grande (mayor deuda total).
+    const dependenciaFinanciera = financiamientoNeto - aportesNeto;
 
+    // 8. Caja Real Final
     const cajaRealFinal = resultadoOperativo + cajaComprometida + personalNeto + financiamientoNeto;
 
     return { 
@@ -300,6 +302,7 @@ const App = () => {
         }));
         const ventasNetas = v - comis;
         const ebitda = ventasNetas - c - g;
+        // Equilibrio
         const margen = ventasNetas - c;
         const ratio = ventasNetas > 0 ? margen / ventasNetas : 0;
         const equilibrio = ratio > 0 ? g / ratio : 0;
@@ -363,7 +366,6 @@ const App = () => {
 
       <main className="max-w-7xl mx-auto px-8 mt-10 space-y-10 animate-fade-in">
         
-        {/* --- FILTROS --- */}
         <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
           <div className="flex items-center gap-3 mb-4 pl-2">
             <div className="bg-amber-100 p-2 rounded-xl text-amber-600"><Sliders size={20} /></div>
@@ -478,7 +480,6 @@ const App = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* 1. Financiamiento Neto */}
               <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between border-l-[6px] border-indigo-500">
                 <div>
                   <h3 className="font-black text-slate-800 uppercase text-xs mb-2">Financiamiento Neto</h3>
@@ -488,7 +489,6 @@ const App = () => {
                 <div className="bg-indigo-50 p-4 rounded-full text-indigo-600"><CreditCard size={24}/></div>
               </div>
 
-              {/* 2. Retiros Personales */}
               <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between border-l-[6px] border-purple-500">
                 <div>
                   <h3 className="font-black text-slate-800 uppercase text-xs mb-2">Retiros Personales</h3>
@@ -498,7 +498,6 @@ const App = () => {
                 <div className="bg-purple-50 p-4 rounded-full text-purple-600"><Users size={24}/></div>
               </div>
 
-              {/* 3. Dependencia Financiera */}
               <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between border-l-[6px] border-blue-500">
                 <div>
                   <h3 className="font-black text-slate-800 uppercase text-xs mb-2">Dependencia Financiera</h3>
