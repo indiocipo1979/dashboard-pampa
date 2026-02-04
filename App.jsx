@@ -9,7 +9,7 @@ import {
 
 /**
  * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL
- * Versión: Producción (Lógica Financiera Corregida y Código Limpio)
+ * Versión: Ordenamiento Financiero Corregido & Tooltip Fix
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
@@ -47,49 +47,86 @@ const formatPeriod = (periodStr) => {
   } catch (error) { return periodStr; }
 };
 
-const KPICard = ({ title, value, icon: Icon, color, detail, subtext }) => (
-  <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col justify-between transition-all hover:shadow-md h-full">
-    <div className="flex justify-between items-start mb-4">
-      <div className={`p-3 rounded-2xl ${color} bg-opacity-10`}>
-        <Icon className={`w-6 h-6 ${color.replace('bg-', 'text-')}`} />
+const KPICard = ({ title, value, icon: Icon, color, detail, subtext }) => {
+  // Lógica de color: Si el texto contiene un guion "-", es negativo -> ROJO. Si no, NEGRO.
+  const isNegative = typeof value === 'string' && value.includes('-');
+  const valueColor = isNegative ? 'text-red-600' : 'text-slate-800';
+
+  return (
+    <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col justify-between transition-all hover:shadow-md hover:-translate-y-1 h-full duration-300">
+      <div className="flex justify-between items-start mb-4">
+        <div className={`p-3 rounded-2xl ${color} bg-opacity-10`}>
+          <Icon className={`w-6 h-6 ${color.replace('bg-', 'text-')}`} />
+        </div>
+        {detail && <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 uppercase tracking-tighter">{detail}</span>}
       </div>
-      {detail && <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 uppercase tracking-tighter">{detail}</span>}
+      <div>
+        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">{title}</p>
+        <h3 className={`text-2xl font-black mt-1 ${valueColor}`}>{value}</h3>
+        {subtext && <p className="text-[10px] text-slate-500 mt-2 font-medium bg-slate-50 p-2 rounded-lg leading-snug">{subtext}</p>}
+      </div>
     </div>
-    <div>
-      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">{title}</p>
-      <h3 className="text-2xl font-black text-slate-800 mt-1">{value}</h3>
-      {subtext && <p className="text-[10px] text-slate-500 mt-2 font-medium bg-slate-50 p-2 rounded-lg leading-snug">{subtext}</p>}
-    </div>
-  </div>
-);
+  );
+};
 
 const TrafficLightCard = ({ title, value, threshold, type = 'higherIsBetter', suffix = '' }) => {
-  let statusColor = 'bg-slate-100 text-slate-500';
+  let borderColor = 'border-slate-200';
+  let iconColor = 'text-slate-400';
+  let iconBg = 'bg-slate-50';
   let statusIcon = HelpCircle;
   let statusText = 'Neutro';
+  
   const numValue = parseFloat(value);
+  let state = 'neutral';
   
   if (type === 'higherIsBetter') {
-    if (numValue >= threshold.green) { statusColor = 'bg-emerald-100 text-emerald-700'; statusIcon = CheckCircle; statusText = 'Saludable'; }
-    else if (numValue >= threshold.yellow) { statusColor = 'bg-amber-100 text-amber-700'; statusIcon = AlertTriangle; statusText = 'Atención'; }
-    else { statusColor = 'bg-red-100 text-red-700'; statusIcon = AlertTriangle; statusText = 'Crítico'; }
+    if (numValue >= threshold.green) state = 'good';
+    else if (numValue >= threshold.yellow) state = 'warning';
+    else state = 'bad';
   } else { 
-    if (numValue <= threshold.green) { statusColor = 'bg-emerald-100 text-emerald-700'; statusIcon = CheckCircle; statusText = 'Óptimo'; }
-    else if (numValue <= threshold.yellow) { statusColor = 'bg-amber-100 text-amber-700'; statusIcon = AlertTriangle; statusText = 'Cuidado'; }
-    else { statusColor = 'bg-red-100 text-red-700'; statusIcon = AlertTriangle; statusText = 'Excesivo'; }
+    if (numValue <= threshold.green) state = 'good';
+    else if (numValue <= threshold.yellow) state = 'warning';
+    else state = 'bad';
   }
+
+  // Configuración de Estilos según estado
+  switch(state) {
+    case 'good':
+      borderColor = 'border-emerald-500';
+      iconColor = 'text-emerald-600';
+      iconBg = 'bg-emerald-50';
+      statusIcon = CheckCircle;
+      statusText = type === 'lowerIsBetter' ? 'Óptimo' : 'Saludable';
+      break;
+    case 'warning':
+      borderColor = 'border-amber-500';
+      iconColor = 'text-amber-600';
+      iconBg = 'bg-amber-50';
+      statusIcon = AlertTriangle;
+      statusText = type === 'lowerIsBetter' ? 'Cuidado' : 'Atención';
+      break;
+    case 'bad':
+      borderColor = 'border-red-500';
+      iconColor = 'text-red-600';
+      iconBg = 'bg-red-50';
+      statusIcon = AlertTriangle;
+      statusText = type === 'lowerIsBetter' ? 'Excesivo' : 'Crítico';
+      break;
+  }
+
   const Icon = statusIcon;
+
   return (
-    <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
+    <div className={`bg-white p-5 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between border-l-[6px] ${borderColor} transition-all hover:shadow-md`}>
       <div>
         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{title}</p>
         <div className="flex items-baseline gap-1">
           <h3 className="text-xl font-black text-slate-800">{numValue}{suffix}</h3>
         </div>
+        <span className={`text-[10px] font-bold uppercase mt-1 block ${iconColor}`}>{statusText}</span>
       </div>
-      <div className={`px-4 py-2 rounded-xl flex items-center gap-2 ${statusColor}`}>
-        <Icon size={16} />
-        <span className="text-[10px] font-black uppercase tracking-wide">{statusText}</span>
+      <div className={`h-12 w-12 rounded-full flex items-center justify-center ${iconBg} ${iconColor}`}>
+        <Icon size={24} />
       </div>
     </div>
   );
@@ -205,7 +242,7 @@ const App = () => {
     };
   }, [data, selectedBranch, selectedMonth, currentTab]);
 
-  // --- LÓGICA FINANCIERA (CASH FLOW - Lógica Condicional Aplicada) ---
+  // --- LÓGICA FINANCIERA (CASH FLOW - Corregida v3) ---
   const financialStats = useMemo(() => {
     if (currentTab !== 'financiero') return null;
     const filtered = data.filter(d => selectedMonth === 'Acumulado' || d.Mes === selectedMonth);
@@ -229,7 +266,8 @@ const App = () => {
     
     // 4. Personal
     const personalNeto = calcularRubro('personal');
-    const personalSalida = filtered.filter(r => r.Tipo && r.Tipo.toLowerCase().includes('personal')).reduce((a,b) => a + (b.Salida || 0), 0);
+    // Para mostrar retiros personales en negativo si es salida
+    const personalMostrar = personalNeto; 
 
     // 5. Financiamiento Neto
     const financiamientoNeto = calcularRubro('financiamiento'); 
@@ -237,19 +275,17 @@ const App = () => {
     // 6. Aportes Neto
     const aportesNeto = calcularRubro('aporte'); 
     
-    // 7. Dependencia Financiera (Lógica Condicional Solicitada)
-    // Si Aportes es Negativo (<0), se suma. Si es Positivo (>=0), se resta.
+    // 7. Dependencia Financiera CORREGIDA (Lógica Algebraica)
     const dependenciaFinanciera = aportesNeto < 0 
       ? financiamientoNeto + aportesNeto 
       : financiamientoNeto - aportesNeto;
 
     // 8. Caja Real Final
-    // Se mantiene: Operativo + Comprometida + Personal + Financiamiento Neto
     const cajaRealFinal = resultadoOperativo + cajaComprometida + personalNeto + financiamientoNeto;
 
     return { 
       resultadoOperativo, cajaComprometida, cajaLibreReal, 
-      personalNeto, personalSalida,
+      personalNeto,
       financiamientoNeto, aportesNeto, dependenciaFinanciera, cajaRealFinal
     };
   }, [data, selectedMonth, currentTab]);
@@ -301,7 +337,8 @@ const App = () => {
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-[2.5rem] shadow-2xl p-10 text-center border-b-8 border-amber-500">
+        <Styles />
+        <div className="max-w-md w-full bg-white rounded-[2.5rem] shadow-2xl p-10 text-center border-b-8 border-amber-500 animate-fade-in">
           <div className="flex justify-center mb-8"><img src={LOGO_URL} alt="Logo" className="h-32 object-contain" /></div>
           <h2 className="text-3xl font-black text-slate-800 mb-2 uppercase">Fiambrerías Pampa</h2>
           <form onSubmit={handleLogin} className="space-y-4 mt-8">
@@ -315,6 +352,7 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] pb-20 font-sans text-slate-900">
+      <Styles />
       <nav className="bg-white border-b border-slate-100 h-20 px-8 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-4">
           <div className="h-10 w-10 rounded-xl bg-white shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden">
@@ -332,7 +370,7 @@ const App = () => {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-8 mt-10 space-y-10">
+      <main className="max-w-7xl mx-auto px-8 mt-10 space-y-10 animate-fade-in">
         
         <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
           <div className="flex items-center gap-3 mb-4 pl-2">
@@ -376,7 +414,7 @@ const App = () => {
               <KPICard title="EBITDA" value={formatCurrency(economicStats.ebitda)} icon={DollarSign} color="bg-emerald-600" detail="Resultado" />
             </div>
 
-            {/* SEMÁFOROS */}
+            {/* SEMÁFOROS (RESTAURADOS Y MEJORADOS) */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <TrafficLightCard title="Margen Bruto %" value={economicStats.margenBrutoPct.toFixed(1)} suffix="%" threshold={{ green: 40, yellow: 30 }} type="higherIsBetter" />
               <TrafficLightCard title="Salud del Margen EBITDA" value={economicStats.margenPct.toFixed(1)} suffix="%" threshold={{ green: 15, yellow: 8 }} type="higherIsBetter" />
@@ -437,46 +475,22 @@ const App = () => {
           </>
         )}
 
-        {/* --- VISTA FINANCIERA (CASH FLOW REAL) --- */}
+        {/* --- VISTA FINANCIERA (CASH FLOW REAL - ORDENADA) --- */}
         {currentTab === 'financiero' && financialStats && (
           <>
+            {/* GRID SUPERIOR DE 4 TARJETAS: Operativo -> Comprometida -> Libre -> Neto */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <KPICard title="Resultado Operativo" value={formatCurrency(financialStats.resultadoOperativo)} icon={Activity} color="bg-blue-600" detail="Dinero Generado" subtext="Operaciones del mes" />
-              <KPICard title="Caja Comprometida" value={formatCurrency(financialStats.cajaComprometida)} icon={AlertTriangle} color="bg-orange-500" detail="Pasivos/Cheques" subtext="Deuda vieja pagada" />
-              <KPICard title="CAJA LIBRE REAL" value={formatCurrency(financialStats.cajaLibreReal)} icon={Wallet} color={financialStats.cajaLibreReal >= 0 ? "bg-emerald-600" : "bg-red-600"} detail="Disponibilidad Real" subtext="Operativo + Comprometido" />
-              <KPICard title="Caja Real Final" value={formatCurrency(financialStats.cajaRealFinal)} icon={PiggyBank} color={financialStats.cajaRealFinal >= 0 ? "bg-indigo-600" : "bg-red-600"} detail="Bolsillo del Mes" subtext="Después de todo" />
+              <KPICard title="Resultado Operativo" value={formatCurrency(financialStats.resultadoOperativo)} icon={Activity} color="bg-blue-600" detail="1" subtext="Operaciones del mes" />
+              <KPICard title="Caja Comprometida" value={formatCurrency(financialStats.cajaComprometida)} icon={AlertTriangle} color="bg-orange-500" detail="2" subtext="Deuda vieja pagada" />
+              <KPICard title="CAJA LIBRE REAL" value={formatCurrency(financialStats.cajaLibreReal)} icon={Wallet} color={financialStats.cajaLibreReal >= 0 ? "bg-emerald-600" : "bg-red-600"} detail="3" subtext="Operativo + Comprometido" />
+              <KPICard title="Financiamiento Neto" value={formatCurrency(financialStats.financiamientoNeto)} icon={CreditCard} color={financialStats.financiamientoNeto >= 0 ? "bg-indigo-600" : "bg-red-600"} detail="4" subtext="Préstamos - Pagos" />
             </div>
 
+            {/* GRID INFERIOR DE 3 TARJETAS: Retiros -> Dependencia -> Final */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* 1. Financiamiento Neto */}
-              <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between border-l-[6px] border-indigo-500">
-                <div>
-                  <h3 className="font-black text-slate-800 uppercase text-xs mb-2">Financiamiento Neto</h3>
-                  <p className={`text-3xl font-black ${financialStats.financiamientoNeto >= 0 ? 'text-slate-800' : 'text-red-600'}`}>{formatCurrency(financialStats.financiamientoNeto)}</p>
-                  <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Préstamos - Pagos</p>
-                </div>
-                <div className="bg-indigo-50 p-4 rounded-full text-indigo-600"><CreditCard size={24}/></div>
-              </div>
-
-              {/* 2. Retiros Personales */}
-              <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between border-l-[6px] border-purple-500">
-                <div>
-                  <h3 className="font-black text-slate-800 uppercase text-xs mb-2">Retiros Personales</h3>
-                  <p className={`text-3xl font-black ${financialStats.personalNeto < 0 ? 'text-red-600' : 'text-slate-800'}`}>{formatCurrency(financialStats.personalNeto)}</p>
-                  <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Salidas por Tipo "Personal"</p>
-                </div>
-                <div className="bg-purple-50 p-4 rounded-full text-purple-600"><Users size={24}/></div>
-              </div>
-
-              {/* 3. Dependencia Financiera */}
-              <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between border-l-[6px] border-blue-500">
-                <div>
-                  <h3 className="font-black text-slate-800 uppercase text-xs mb-2">Dependencia Financiera</h3>
-                  <p className={`text-3xl font-black ${financialStats.dependenciaFinanciera < 0 ? 'text-red-600' : 'text-slate-800'}`}>{formatCurrency(financialStats.dependenciaFinanciera)}</p>
-                  <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Aportes + Financiamiento Neto</p>
-                </div>
-                <div className="bg-blue-50 p-4 rounded-full text-blue-600"><Landmark size={24}/></div>
-              </div>
+              <KPICard title="Retiros Personales" value={formatCurrency(financialStats.personalNeto)} icon={Users} color="bg-purple-600" detail="5" subtext="Salidas Personales" />
+              <KPICard title="Dependencia Financiera" value={formatCurrency(financialStats.dependenciaFinanciera)} icon={Landmark} color={financialStats.dependenciaFinanciera < 0 ? "bg-red-600" : "bg-slate-800"} detail="6" subtext="Aportes + Financiamiento" />
+              <KPICard title="Caja Real Final" value={formatCurrency(financialStats.cajaRealFinal)} icon={PiggyBank} color={financialStats.cajaRealFinal >= 0 ? "bg-emerald-600" : "bg-red-600"} detail="7" subtext="Bolsillo del Mes" />
             </div>
 
             <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
@@ -486,21 +500,33 @@ const App = () => {
                   { name: 'R. Operativo', valor: financialStats.resultadoOperativo, base: 0, fill: '#3b82f6', label: 'Resultado Operativo' },
                   { name: 'Comprometido', valor: financialStats.cajaComprometida, base: Math.max(0, financialStats.resultadoOperativo), fill: '#f97316', label: '+ Caja Comprometida' },
                   { name: 'Caja Libre', valor: financialStats.cajaLibreReal, base: 0, fill: '#10b981', label: '= Caja Libre Real' },
-                  { name: 'Personal', valor: financialStats.personalNeto, base: Math.max(0, financialStats.cajaLibreReal), fill: '#ec4899', label: '+ Personal (Neto)' },
-                  { name: 'Financiamiento', valor: financialStats.financiamientoNeto, base: Math.max(0, financialStats.cajaLibreReal + financialStats.personalNeto), fill: '#8b5cf6', label: '+ Financiamiento Neto' },
+                  { name: 'Financiamiento', valor: financialStats.financiamientoNeto, base: Math.max(0, financialStats.cajaLibreReal), fill: '#8b5cf6', label: '+ Financiamiento Neto' },
+                  { name: 'Retiros', valor: financialStats.personalNeto, base: Math.max(0, financialStats.cajaLibreReal + financialStats.financiamientoNeto), fill: '#ec4899', label: '- Retiros Personales' },
                   { name: 'Caja Final', valor: financialStats.cajaRealFinal, base: 0, fill: financialStats.cajaRealFinal >= 0 ? '#14b8a6' : '#ef4444', label: '= Caja Real Final' }
                 ]}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} />
                   <YAxis hide />
-                  <Tooltip cursor={{fill: 'transparent'}} content={({ payload }) => { if (payload && payload.length) return <div className="bg-white p-4 rounded-xl shadow-lg border"><p className="font-bold text-slate-500 text-xs">{payload[0].payload.label}</p><p className="font-black text-lg">{formatCurrency(payload[0].value)}</p></div>; return null; }} />
+                  <Tooltip cursor={{fill: 'transparent'}} content={({ payload }) => { 
+                    if (payload && payload.length) {
+                      // Corrección Tooltip: Usamos el valor real del dato, no el de la barra base
+                      const data = payload[0].payload;
+                      return (
+                        <div className="bg-white p-4 rounded-xl shadow-lg border">
+                          <p className="font-bold text-slate-500 text-xs">{data.label}</p>
+                          <p className={`font-black text-lg ${data.valor < 0 ? 'text-red-600' : 'text-slate-800'}`}>{formatCurrency(data.valor)}</p>
+                        </div>
+                      );
+                    }
+                    return null; 
+                  }} />
                   <Bar dataKey="base" stackId="a" fill="transparent" />
                   <Bar dataKey="valor" stackId="a" radius={[6, 6, 6, 6]}>
                     <Cell fill="#3b82f6" />
                     <Cell fill="#f97316" />
                     <Cell fill="#10b981" />
-                    <Cell fill="#ec4899" />
                     <Cell fill="#8b5cf6" />
+                    <Cell fill="#ec4899" />
                     <Cell fill={financialStats.cajaRealFinal >= 0 ? '#14b8a6' : '#ef4444'} />
                   </Bar>
                 </BarChart>
@@ -518,3 +544,15 @@ const root = createRoot(document.getElementById('root'));
 root.render(<App />);
 
 export default App;
+// --- ESTILOS INYECTADOS PARA ANIMACIONES ---
+const Styles = () => (
+  <style>{`
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in {
+      animation: fadeIn 0.6s ease-out forwards;
+    }
+  `}</style>
+);
