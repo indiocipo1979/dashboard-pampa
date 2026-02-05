@@ -9,7 +9,7 @@ import {
 
 /**
  * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL
- * Versión: Gauge Charts Corregidos (Texto legible bajo la aguja)
+ * Versión: UI Clean - Gauge Charts Estilo Moderno
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
@@ -68,10 +68,11 @@ const KPICard = ({ title, value, icon: Icon, color, detail, subtext }) => {
   );
 };
 
-// --- GAUGE CARD CORREGIDA ---
+// --- GAUGE CARD ESTILO "CLEAN UI" ---
 const GaugeCard = ({ title, value, max = 100, type = 'higherIsBetter', suffix = '' }) => {
   const numValue = Math.max(0, Math.min(parseFloat(value), max));
-  const rotation = (numValue / max) * 180;
+  // Rotación: -90 (izquierda) a 90 (derecha)
+  const rotation = -90 + ((numValue / max) * 180);
   
   const colors = type === 'higherIsBetter' 
     ? ['#ef4444', '#f59e0b', '#10b981'] 
@@ -81,28 +82,34 @@ const GaugeCard = ({ title, value, max = 100, type = 'higherIsBetter', suffix = 
     <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col items-center justify-between h-full relative overflow-hidden hover:shadow-md transition-all">
       <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 z-10 w-full text-center">{title}</h3>
       
-      <div className="relative w-48 h-24 mb-2">
-        <svg viewBox="0 0 100 50" className="w-full h-full overflow-visible">
-          <path d="M 10 50 A 40 40 0 0 1 30 15.36" fill="none" stroke={colors[0]} strokeWidth="12" strokeLinecap="butt" />
-          <path d="M 30 15.36 A 40 40 0 0 1 70 15.36" fill="none" stroke={colors[1]} strokeWidth="12" strokeLinecap="butt" />
-          <path d="M 70 15.36 A 40 40 0 0 1 90 50" fill="none" stroke={colors[2]} strokeWidth="12" strokeLinecap="butt" />
+      <div className="relative w-48 h-24">
+        <svg viewBox="0 0 100 55" className="w-full h-full overflow-visible">
+          {/* Segmento 1 (Izquierda) */}
+          <path d="M 10 50 A 40 40 0 0 1 28 17" fill="none" stroke={colors[0]} strokeWidth="8" strokeLinecap="round" />
           
+          {/* Segmento 2 (Centro) */}
+          <path d="M 34 13 A 40 40 0 0 1 66 13" fill="none" stroke={colors[1]} strokeWidth="8" strokeLinecap="round" />
+          
+          {/* Segmento 3 (Derecha) */}
+          <path d="M 72 17 A 40 40 0 0 1 90 50" fill="none" stroke={colors[2]} strokeWidth="8" strokeLinecap="round" />
+          
+          {/* Aguja Fina y Elegante */}
           <g transform={`rotate(${rotation} 50 50)`} style={{ transition: 'transform 1s cubic-bezier(0.4, 0, 0.2, 1)' }}>
-             <line x1="50" y1="50" x2="15" y2="50" stroke="#1e293b" strokeWidth="4" strokeLinecap="round" />
-             <circle cx="50" cy="50" r="6" fill="#1e293b" />
+             {/* Cuerpo de la aguja */}
+             <line x1="50" y1="50" x2="50" y2="5" stroke="#334155" strokeWidth="2.5" strokeLinecap="round" />
+             {/* Pivote central */}
+             <circle cx="50" cy="50" r="3" fill="#334155" stroke="white" strokeWidth="1.5" />
           </g>
         </svg>
+        
+        {/* Etiquetas Mín/Máx Sutiles */}
+        <div className="absolute bottom-0 left-2 text-[9px] font-bold text-slate-300">0{suffix}</div>
+        <div className="absolute bottom-0 right-2 text-[9px] font-bold text-slate-300">{max}{suffix}</div>
       </div>
       
-      {/* CORRECCIÓN: Texto movido abajo y con fondo para legibilidad */}
-      <div className="text-center -mt-6 z-20 relative">
-         <span className="text-3xl font-black text-slate-800 bg-white/80 px-2 rounded-lg backdrop-blur-sm">{value}{suffix}</span>
-      </div>
-      
-      <div className="flex justify-between w-full px-8 mt-2 text-[9px] font-bold text-slate-300">
-         <span>0{suffix}</span>
-         <span>{max/2}{suffix}</span>
-         <span>{max}{suffix}</span>
+      {/* Valor Principal (Debajo del gráfico) */}
+      <div className="text-center mt-2 z-20">
+         <span className="text-3xl font-black text-slate-800 tracking-tight">{value}{suffix}</span>
       </div>
     </div>
   );
@@ -237,7 +244,7 @@ const App = () => {
     const financiamientoNeto = calcularRubro('financiamiento'); 
     const aportesNeto = calcularRubro('aporte'); 
     
-    // Dependencia Financiera CORREGIDA
+    // Dependencia Financiera
     const dependenciaFinanciera = aportesNeto < 0 
       ? financiamientoNeto + aportesNeto 
       : financiamientoNeto - aportesNeto;
@@ -459,8 +466,8 @@ const App = () => {
                   { name: 'R. Operativo', valor: financialStats.resultadoOperativo, base: 0, fill: '#3b82f6', label: 'Resultado Operativo' },
                   { name: 'Comprometido', valor: financialStats.cajaComprometida, base: Math.max(0, financialStats.resultadoOperativo), fill: '#f97316', label: '+ Caja Comprometida' },
                   { name: 'Caja Libre', valor: financialStats.cajaLibreReal, base: 0, fill: '#10b981', label: '= Caja Libre Real' },
-                  { name: 'Financiamiento', valor: financialStats.financiamientoNeto, base: Math.max(0, financialStats.cajaLibreReal), fill: '#8b5cf6', label: '+ Financiamiento Neto' },
-                  { name: 'Retiros', valor: financialStats.personalNeto, base: Math.max(0, financialStats.cajaLibreReal + financialStats.financiamientoNeto), fill: '#ec4899', label: '- Retiros Personales' },
+                  { name: 'Personal', valor: financialStats.personalNeto, base: Math.max(0, financialStats.cajaLibreReal), fill: '#ec4899', label: '+ Personal (Neto)' },
+                  { name: 'Financiamiento', valor: financialStats.financiamientoNeto, base: Math.max(0, financialStats.cajaLibreReal + financialStats.personalNeto), fill: '#8b5cf6', label: '+ Financiamiento Neto' },
                   { name: 'Caja Final', valor: financialStats.cajaRealFinal, base: 0, fill: financialStats.cajaRealFinal >= 0 ? '#14b8a6' : '#ef4444', label: '= Caja Real Final' }
                 ]}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -483,8 +490,8 @@ const App = () => {
                     <Cell fill="#3b82f6" />
                     <Cell fill="#f97316" />
                     <Cell fill="#10b981" />
-                    <Cell fill="#8b5cf6" />
                     <Cell fill="#ec4899" />
+                    <Cell fill="#8b5cf6" />
                     <Cell fill={financialStats.cajaRealFinal >= 0 ? '#14b8a6' : '#ef4444'} />
                   </Bar>
                 </BarChart>
