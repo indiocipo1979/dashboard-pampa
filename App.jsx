@@ -9,7 +9,7 @@ import {
 
 /**
  * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL
- * Versión: Gauge Charts (Velocímetros) para KPIs Porcentuales
+ * Versión: Gauge Charts Corregidos (Texto legible bajo la aguja)
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
@@ -68,16 +68,14 @@ const KPICard = ({ title, value, icon: Icon, color, detail, subtext }) => {
   );
 };
 
-// --- NUEVO COMPONENTE: GAUGE CHART (VELOCÍMETRO) ---
+// --- GAUGE CARD CORREGIDA ---
 const GaugeCard = ({ title, value, max = 100, type = 'higherIsBetter', suffix = '' }) => {
   const numValue = Math.max(0, Math.min(parseFloat(value), max));
-  // Rotación: 0% = 0deg (Izquierda), 100% = 180deg (Derecha)
   const rotation = (numValue / max) * 180;
   
-  // Colores de segmentos (Izquierda -> Centro -> Derecha)
   const colors = type === 'higherIsBetter' 
-    ? ['#ef4444', '#f59e0b', '#10b981'] // Rojo -> Amarillo -> Verde
-    : ['#10b981', '#f59e0b', '#ef4444']; // Verde -> Amarillo -> Rojo
+    ? ['#ef4444', '#f59e0b', '#10b981'] 
+    : ['#10b981', '#f59e0b', '#ef4444']; 
 
   return (
     <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col items-center justify-between h-full relative overflow-hidden hover:shadow-md transition-all">
@@ -85,29 +83,23 @@ const GaugeCard = ({ title, value, max = 100, type = 'higherIsBetter', suffix = 
       
       <div className="relative w-48 h-24 mb-2">
         <svg viewBox="0 0 100 50" className="w-full h-full overflow-visible">
-          {/* Segmento 1 (0-33%) */}
           <path d="M 10 50 A 40 40 0 0 1 30 15.36" fill="none" stroke={colors[0]} strokeWidth="12" strokeLinecap="butt" />
-          {/* Segmento 2 (33-66%) */}
           <path d="M 30 15.36 A 40 40 0 0 1 70 15.36" fill="none" stroke={colors[1]} strokeWidth="12" strokeLinecap="butt" />
-          {/* Segmento 3 (66-100%) */}
           <path d="M 70 15.36 A 40 40 0 0 1 90 50" fill="none" stroke={colors[2]} strokeWidth="12" strokeLinecap="butt" />
           
-          {/* Aguja */}
           <g transform={`rotate(${rotation} 50 50)`} style={{ transition: 'transform 1s cubic-bezier(0.4, 0, 0.2, 1)' }}>
-             {/* Línea de la aguja apuntando a la izquierda (0 grados visuales) */}
              <line x1="50" y1="50" x2="15" y2="50" stroke="#1e293b" strokeWidth="4" strokeLinecap="round" />
              <circle cx="50" cy="50" r="6" fill="#1e293b" />
           </g>
         </svg>
-        
-        {/* Valor al centro */}
-        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 text-center">
-           <span className="text-2xl font-black text-slate-800">{value}{suffix}</span>
-        </div>
       </div>
       
-      {/* Escala */}
-      <div className="flex justify-between w-full px-8 mt-4 text-[9px] font-bold text-slate-300">
+      {/* CORRECCIÓN: Texto movido abajo y con fondo para legibilidad */}
+      <div className="text-center -mt-6 z-20 relative">
+         <span className="text-3xl font-black text-slate-800 bg-white/80 px-2 rounded-lg backdrop-blur-sm">{value}{suffix}</span>
+      </div>
+      
+      <div className="flex justify-between w-full px-8 mt-2 text-[9px] font-bold text-slate-300">
          <span>0{suffix}</span>
          <span>{max/2}{suffix}</span>
          <span>{max}{suffix}</span>
@@ -245,7 +237,7 @@ const App = () => {
     const financiamientoNeto = calcularRubro('financiamiento'); 
     const aportesNeto = calcularRubro('aporte'); 
     
-    // Dependencia Financiera CORREGIDA (Lógica Condicional Solicitada)
+    // Dependencia Financiera CORREGIDA
     const dependenciaFinanciera = aportesNeto < 0 
       ? financiamientoNeto + aportesNeto 
       : financiamientoNeto - aportesNeto;
@@ -277,6 +269,7 @@ const App = () => {
         }));
         const ventasNetas = v - comis;
         const ebitda = ventasNetas - c - g;
+        // Equilibrio
         const margen = ventasNetas - c;
         const ratio = ventasNetas > 0 ? margen / ventasNetas : 0;
         const equilibrio = ratio > 0 ? g / ratio : 0;
