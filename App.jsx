@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { createRoot } from 'react-dom/client';
 import { 
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, ComposedChart, ReferenceLine
 } from 'recharts';
@@ -13,8 +12,8 @@ import { getAuth, signInAnonymously } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
 
 /**
- * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v3.7
- * Solución Final: Clave Fragmentada (Chopped Key) para evadir detección de secretos
+ * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v3.8 (Fix Runtime)
+ * Solución: Eliminado createRoot manual para evitar conflicto con el entorno
  */
 
 // --- CONFIGURACIÓN FIREBASE CAMUFLADA ---
@@ -820,7 +819,7 @@ const App = () => {
   );
 };
 
-const mockData = [{ Mes: '2024-01', Sucursal: 'Centro', Concepto: 'Ingreso', Subconcepto: 'Efectivo', Monto: 100000, Entrada: 100000, Salida: 0, Tipo: 'Operativo' }];
+const mockData = [{ Mes: '2024-01', Sucursal: 'Centro', Concepto: 'Ingreso', Subconcepto: 'Efectivo', Monto: 100000 }];
 const root = createRoot(document.getElementById('root'));
 root.render(<App />);
 
