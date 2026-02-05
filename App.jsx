@@ -9,7 +9,7 @@ import {
 
 /**
  * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL
- * Versión: UI Clean - Gauge Charts Estilo Moderno
+ * Versión: Títulos de Gauge Cards mejorados (Legibilidad)
  */
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
@@ -80,7 +80,8 @@ const GaugeCard = ({ title, value, max = 100, type = 'higherIsBetter', suffix = 
 
   return (
     <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col items-center justify-between h-full relative overflow-hidden hover:shadow-md transition-all">
-      <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 z-10 w-full text-center">{title}</h3>
+      {/* Título Mejorado: Más grande, más oscuro y legible */}
+      <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 z-10 w-full text-center">{title}</h3>
       
       <div className="relative w-48 h-24">
         <svg viewBox="0 0 100 55" className="w-full h-full overflow-visible">
