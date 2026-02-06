@@ -13,8 +13,8 @@ import { getAuth, signInAnonymously } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, updateDoc, doc, query, orderBy } from 'firebase/firestore';
 
 /**
- * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v6.9
- * Mejoras: Etiquetas explícitas en formulario de carga de facturas.
+ * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v7.0
+ * Mejora: Cálculo automático de Importe Total en formulario de carga.
  */
 
 // --- CONFIGURACIÓN FIREBASE OFUSCADA ---
@@ -147,6 +147,9 @@ const App = () => {
   const [importText, setImportText] = useState('');
   const [savingFactura, setSavingFactura] = useState(false);
 
+  // Estado para cálculo automático en formulario
+  const [newInvoiceData, setNewInvoiceData] = useState({ net: '', tax: '' });
+
   const connectFirebase = async () => {
     if (!auth) return;
     try { await signInAnonymously(auth); console.log("Firebase Conectado"); } 
@@ -261,7 +264,11 @@ const App = () => {
   const handleAddFactura = async (factura) => {
     if (!db || savingFactura) return;
     setSavingFactura(true);
-    try { await addDoc(collection(db, 'facturas'), factura); fetchData('proveedores'); } 
+    try { 
+        await addDoc(collection(db, 'facturas'), factura); 
+        fetchData('proveedores'); 
+        setNewInvoiceData({ net: '', tax: '' }); // Resetear estados locales
+    } 
     catch (e) { alert("Error al guardar"); } 
     finally { setSavingFactura(false); }
   };
@@ -556,7 +563,6 @@ const App = () => {
                         <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} interval={0} />
                         <Tooltip cursor={{fill: 'transparent'}} content={({ active, payload }) => { 
                           if (active && payload && payload.length) {
-                            // Corrección Tooltip Cascada: Leemos el valor directo del payload, no de la barra base
                             const data = payload[0].payload;
                             return (
                               <div className="bg-white p-4 rounded-xl shadow-lg border">
@@ -635,7 +641,7 @@ const App = () => {
           </>
         )}
 
-        {/* --- VISTA PROVEEDORES --- */}
+        {/* --- VISTA PROVEEDORES (NUEVO) --- */}
         {currentTab === 'proveedores' && (
           <div className="space-y-6">
             <div className="flex gap-4 mb-4">
@@ -850,6 +856,7 @@ const App = () => {
                       status: 'Pendiente' 
                     });
                     e.target.reset();
+                    setNewInvoiceData({ net: '', tax: '' });
                   }} className="grid grid-cols-1 md:grid-cols-4 gap-4">
                      <div className="flex flex-col gap-1">
                         <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">Proveedor</label>
@@ -873,13 +880,38 @@ const App = () => {
                      
                      <div className="flex flex-col gap-1">
                         <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">Monto Neto</label>
-                        <input name="netAmount" type="number" step="0.01" placeholder="$ 0.00" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 w-full" required />
+                        <input 
+                          name="netAmount" 
+                          type="number" 
+                          step="0.01" 
+                          placeholder="$ 0.00" 
+                          className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 w-full" 
+                          required 
+                          onChange={(e) => setNewInvoiceData(prev => ({ ...prev, net: e.target.value }))}
+                        />
                      </div>
                      <div className="flex flex-col gap-1">
                         <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">Impuestos</label>
-                        <input name="taxes" type="number" step="0.01" placeholder="$ 0.00" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 w-full" required />
+                        <input 
+                          name="taxes" 
+                          type="number" 
+                          step="0.01" 
+                          placeholder="$ 0.00" 
+                          className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 w-full" 
+                          required 
+                          onChange={(e) => setNewInvoiceData(prev => ({ ...prev, tax: e.target.value }))}
+                        />
                      </div>
-                     <div className="flex flex-col gap-1 md:col-span-2">
+                     
+                     {/* CAMPO CALCULADO AUTOMÁTICO */}
+                     <div className="flex flex-col gap-1 bg-slate-100 p-2 rounded-xl border border-slate-200">
+                        <label className="text-[10px] font-black text-slate-500 uppercase ml-2">Importe Total</label>
+                        <div className="px-2 py-1 text-lg font-black text-slate-800">
+                           {formatCurrency((parseFloat(newInvoiceData.net) || 0) + (parseFloat(newInvoiceData.tax) || 0))}
+                        </div>
+                     </div>
+
+                     <div className="flex flex-col gap-1">
                         <label className="text-[10px] font-bold text-emerald-600 uppercase ml-2">Pago / Entrega Inicial</label>
                         <input name="initialPayment" type="number" step="0.01" placeholder="$ 0.00" className="bg-emerald-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-600 font-bold text-emerald-700 w-full" />
                      </div>
