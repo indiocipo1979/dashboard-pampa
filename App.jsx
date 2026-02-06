@@ -4,7 +4,7 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, ComposedChart, ReferenceLine
 } from 'recharts';
 import { 
-  LayoutDashboard, TrendingUp, DollarSign, Percent, Store, Calendar, RefreshCcw, LogOut, ChevronRight, FileText, ArrowRight, Wallet, AlertTriangle, CheckCircle, HelpCircle, Activity, Scale, Filter, BarChart2, PieChart as PieIcon, Sliders, Banknote, Users, ArrowLeftRight, CreditCard, PiggyBank, Landmark, Briefcase, PlusCircle, Clock, AlertOctagon, Search, Trash2, Edit, Save, X, UserCog, User, Upload, Loader
+  LayoutDashboard, TrendingUp, DollarSign, Percent, Store, Calendar, RefreshCcw, LogOut, ChevronRight, FileText, ArrowRight, Wallet, AlertTriangle, CheckCircle, HelpCircle, Activity, Scale, Filter, BarChart2, PieChart as PieIcon, Sliders, Banknote, Users, ArrowLeftRight, CreditCard, PiggyBank, Landmark, Briefcase, PlusCircle, Clock, AlertOctagon, Search, Trash2, Edit, Save, X, UserCog, User, Upload, Loader, Lock
 } from 'lucide-react';
 
 // FIREBASE IMPORTS
@@ -13,8 +13,8 @@ import { getAuth, signInAnonymously } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, updateDoc, doc, query, orderBy } from 'firebase/firestore';
 
 /**
- * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v7.0
- * Mejora: Cálculo automático de Importe Total en formulario de carga.
+ * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v7.1
+ * Feature: "Easter Egg" para Importación Masiva de Facturas (Doble Clic en Título)
  */
 
 // --- CONFIGURACIÓN FIREBASE OFUSCADA ---
@@ -134,7 +134,6 @@ const App = () => {
   const [selectedBranch, setSelectedBranch] = useState('Todas');
   const [selectedMonth, setSelectedMonth] = useState('Acumulado');
 
-  // Estados para Firebase
   const [proveedores, setProveedores] = useState([]);
   const [facturas, setFacturas] = useState([]);
   const [proveedoresSubTab, setProveedoresSubTab] = useState('dashboard'); 
@@ -146,14 +145,15 @@ const App = () => {
   const [showImportModal, setShowImportModal] = useState(false);
   const [importText, setImportText] = useState('');
   const [savingFactura, setSavingFactura] = useState(false);
-
-  // Estado para cálculo automático en formulario
   const [newInvoiceData, setNewInvoiceData] = useState({ net: '', tax: '' });
+  
+  // Modal de Importación de Facturas (Nuevo)
+  const [showInvoiceImportModal, setShowInvoiceImportModal] = useState(false);
+  const [invoiceImportText, setInvoiceImportText] = useState('');
 
   const connectFirebase = async () => {
     if (!auth) return;
-    try { await signInAnonymously(auth); console.log("Firebase Conectado"); } 
-    catch (e) { console.error("Error auth:", e); }
+    try { await signInAnonymously(auth); } catch (e) { console.error("Error auth:", e); }
   };
 
   const fetchData = async (targetTab) => {
@@ -245,7 +245,7 @@ const App = () => {
     let addedCount = 0;
     for (let line of lines) {
       if (!line.trim()) continue;
-      const parts = line.split(',');
+      const parts = line.split(/[;,]+/); // Separa por punto y coma o coma
       if (parts.length < 1) continue;
       const name = parts[0]?.trim();
       const phone = parts[1]?.trim() || '';
@@ -261,14 +261,59 @@ const App = () => {
     alert(`Importación finalizada. Agregados: ${addedCount}`);
   };
 
+  // --- LÓGICA IMPORTACIÓN MASIVA FACTURAS (EASTER EGG) ---
+  const handleBulkImportFacturas = async () => {
+    if (!db || !invoiceImportText.trim()) return;
+    setSavingFactura(true);
+    const lines = invoiceImportText.split('\n');
+    let addedCount = 0;
+    let errorCount = 0;
+
+    for (let line of lines) {
+      if (!line.trim()) continue;
+      // Espera: Fecha[0], Proveedor[1], Nro[2], Detalle[3], Neto[4], Impuestos[5], Entrega[6], Vencimiento[7]
+      const parts = line.split(/[\t;]+/); // Soporta Tab (Excel) o punto y coma
+      
+      if (parts.length < 5) { errorCount++; continue; }
+
+      const dateStr = parts[0]?.trim(); // Suponemos YYYY-MM-DD o DD/MM/YYYY
+      const provName = parts[1]?.trim();
+      const invNum = parts[2]?.trim();
+      const desc = parts[3]?.trim();
+      const net = cleanMonto(parts[4]);
+      const tax = cleanMonto(parts[5]);
+      const paid = cleanMonto(parts[6]);
+      const dueStr = parts[7]?.trim();
+
+      // Buscar proveedor
+      const prov = proveedores.find(p => p.name.toLowerCase() === provName.toLowerCase());
+      const provId = prov ? prov.id : 'unknown';
+      const finalProvName = prov ? prov.name : provName;
+
+      try {
+        await addDoc(collection(db, 'facturas'), {
+          invoiceDate: dateStr,
+          dueDate: dueStr || dateStr,
+          providerId: provId,
+          providerName: finalProvName,
+          invoiceNumber: invNum,
+          description: desc,
+          netAmount: net,
+          taxes: tax,
+          partialPayment: paid,
+          status: 'Importado'
+        });
+        addedCount++;
+      } catch (e) { errorCount++; }
+    }
+    setSavingFactura(false); setShowInvoiceImportModal(false); setInvoiceImportText(''); fetchData('proveedores');
+    alert(`Facturas Importadas: ${addedCount}. Errores: ${errorCount}`);
+  };
+
   const handleAddFactura = async (factura) => {
     if (!db || savingFactura) return;
     setSavingFactura(true);
-    try { 
-        await addDoc(collection(db, 'facturas'), factura); 
-        fetchData('proveedores'); 
-        setNewInvoiceData({ net: '', tax: '' }); // Resetear estados locales
-    } 
+    try { await addDoc(collection(db, 'facturas'), factura); fetchData('proveedores'); setNewInvoiceData({net:'',tax:''}); } 
     catch (e) { alert("Error al guardar"); } 
     finally { setSavingFactura(false); }
   };
@@ -288,7 +333,7 @@ const App = () => {
 
   const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(val);
 
-  // --- MEMOS ---
+  // --- MEMOS DE CÁLCULO ---
   const economicStats = useMemo(() => {
     if (currentTab !== 'economico') return null;
     const filtered = data.filter(d => {
@@ -317,7 +362,10 @@ const App = () => {
     const pesoGastosFijos = ventasNetas > 0 ? (sum(buckets.gastos) / ventasNetas) * 100 : 0;
     const margenBrutoPct = ventasNetas > 0 ? (margenBruto / ventasNetas) * 100 : 0;
 
-    return { ventasNetas, ebitda, margenPct, totalGastos: sum(buckets.gastos), margenBruto, puntoEquilibrio, pesoGastosFijos, margenBrutoPct, buckets };
+    return { 
+      ventasNetas, ebitda, margenPct, totalGastos: sum(buckets.gastos), margenBruto, puntoEquilibrio, pesoGastosFijos, margenBrutoPct,
+      buckets 
+    };
   }, [data, selectedBranch, selectedMonth, currentTab]);
 
   const financialStats = useMemo(() => {
@@ -347,7 +395,6 @@ const App = () => {
     if (currentTab === 'economico') {
       const filtered = data.filter(d => (selectedBranch === 'Todas' || d.Sucursal === selectedBranch));
       const months = [...new Set(filtered.map(d => d.Mes))].sort();
-      
       const trend = months.map(m => {
         const p = filtered.filter(d => d.Mes === m);
         const sumMonto = (arr) => arr.reduce((a, b) => a + (b.Monto || 0), 0);
@@ -368,7 +415,6 @@ const App = () => {
 
       const stats = economicStats || { ventasNetas: 0, margenBruto: 0, totalGastos: 0, ebitda: 0, buckets: { cmv: [] } };
       const cmvTotal = stats.buckets?.cmv ? stats.buckets.cmv.reduce((a,b)=>a+(b.Monto||0),0) : 0;
-
       const waterfall = [
         { name: '1. Ingresos', valor: stats.ventasNetas, base: 0, fill: '#3b82f6', label: 'Ventas Netas' },
         { name: '2. Mercadería', valor: cmvTotal, base: Math.max(0, stats.margenBruto), fill: '#f97316', label: '- Costo Mercadería' },
@@ -383,40 +429,30 @@ const App = () => {
 
   const proveedoresStats = useMemo(() => {
     if (currentTab !== 'proveedores') return null;
-    
     const facturasCalculadas = facturas.map(f => {
       const net = parseFloat(f.netAmount) || 0;
       const tax = parseFloat(f.taxes) || 0;
       const total = net + tax;
       const paid = parseFloat(f.partialPayment) || 0;
       const debt = total - paid;
-      
       let computedStatus = 'Pendiente';
       if (debt <= 0.5) computedStatus = 'Pagado'; 
       else if (paid > 0) computedStatus = 'Parcial';
-
       return { ...f, total, debt, computedStatus };
     });
 
     const totalDeuda = facturasCalculadas.filter(f => f.computedStatus !== 'Pagado').reduce((acc, f) => acc + f.debt, 0);
     const vencido = facturasCalculadas.filter(f => f.computedStatus !== 'Pagado' && new Date(f.dueDate) < new Date()).reduce((acc, f) => acc + f.debt, 0);
     const porVencer = facturasCalculadas.filter(f => f.computedStatus !== 'Pagado' && new Date(f.dueDate) >= new Date()).reduce((acc, f) => acc + f.debt, 0);
-    
     const provDebt = {};
     facturasCalculadas.forEach(f => {
-       if(f.computedStatus !== 'Pagado') {
-         provDebt[f.providerName] = (provDebt[f.providerName] || 0) + f.debt;
-       }
+       if(f.computedStatus !== 'Pagado') provDebt[f.providerName] = (provDebt[f.providerName] || 0) + f.debt;
     });
     const topDeudores = Object.entries(provDebt).map(([name, saldo]) => ({ nombre: name, saldo })).sort((a,b) => b.saldo - a.saldo).slice(0,5);
-
     const vencimientosSemana = [
-      { name: 'Semana 1', deuda: vencido * 0.4 },
-      { name: 'Semana 2', deuda: vencido * 0.2 + porVencer * 0.3 },
-      { name: 'Semana 3', deuda: porVencer * 0.4 },
-      { name: 'Semana 4', deuda: porVencer * 0.3 },
+      { name: 'Semana 1', deuda: vencido * 0.4 }, { name: 'Semana 2', deuda: vencido * 0.2 + porVencer * 0.3 },
+      { name: 'Semana 3', deuda: porVencer * 0.4 }, { name: 'Semana 4', deuda: porVencer * 0.3 },
     ];
-
     return { totalDeuda, vencido, porVencer, topDeudores, vencimientosSemana, facturasCalculadas };
   }, [facturas, currentTab]);
 
@@ -441,6 +477,7 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] pb-20 font-sans text-slate-900">
+      <Styles />
       <nav className="bg-white border-b border-slate-100 h-20 px-8 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-4">
           <div className="h-10 w-10 rounded-xl bg-white shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden"><img src={LOGO_URL} alt="Logo" className="h-full w-full object-contain" /></div>
@@ -474,7 +511,7 @@ const App = () => {
 
       <main className="max-w-7xl mx-auto px-8 mt-10 space-y-10 animate-fade-in">
         
-        {/* FILTROS COMUNES */}
+        {/* FILTROS COMUNES (SOLO GERENTE VE FILTROS ECONÓMICOS) */}
         {userRole === 'gerente' && currentTab !== 'proveedores' && (
           <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
             <div className="flex items-center gap-3 mb-4 pl-2">
@@ -614,8 +651,8 @@ const App = () => {
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} />
                   <YAxis hide />
-                  <Tooltip cursor={{fill: 'transparent'}} content={({ payload }) => { 
-                    if (payload && payload.length) {
+                  <Tooltip cursor={{fill: 'transparent'}} content={({ active, payload }) => { 
+                    if (active && payload && payload.length) {
                       const data = payload[0].payload;
                       return (
                         <div className="bg-white p-4 rounded-xl shadow-lg border">
@@ -641,7 +678,7 @@ const App = () => {
           </>
         )}
 
-        {/* --- VISTA PROVEEDORES (NUEVO) --- */}
+        {/* --- VISTA PROVEEDORES --- */}
         {currentTab === 'proveedores' && (
           <div className="space-y-6">
             <div className="flex gap-4 mb-4">
@@ -790,7 +827,14 @@ const App = () => {
             {proveedoresSubTab === 'operaciones' && (
               <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
                  <div className="flex justify-between items-center mb-6">
-                  <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Transacciones</h3>
+                  {/* EASTER EGG TRIGGER: Doble Clic en el Título abre importación de Facturas */}
+                  <h3 
+                    onDoubleClick={() => setShowInvoiceImportModal(true)}
+                    className="font-black text-sm uppercase tracking-widest text-slate-600 cursor-pointer select-none hover:text-slate-800 transition-colors"
+                    title="Doble clic para importar"
+                  >
+                    Transacciones
+                  </h3>
                 </div>
                 <div className="overflow-x-auto">
                    <table className="w-full text-left text-xs">
@@ -875,7 +919,7 @@ const App = () => {
                      </div>
                      <div className="flex flex-col gap-1">
                         <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">Fecha Vencimiento</label>
-                        <input name="dueDate" type="date" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 w-full" required />
+                        <input name="dueDate" type="date" placeholder="Vencimiento" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 w-full" required />
                      </div>
                      
                      <div className="flex flex-col gap-1">
@@ -925,6 +969,29 @@ const App = () => {
                         {savingFactura ? 'Guardando...' : 'Guardar Factura'}
                      </button>
                   </form>
+                </div>
+              </div>
+            )}
+
+            {/* MODAL IMPORTACIÓN MASIVA FACTURAS (EASTER EGG) */}
+            {showInvoiceImportModal && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-3xl p-8 w-full max-w-lg shadow-2xl animate-fade-in">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-black text-lg text-slate-800 uppercase">Importar Facturas</h3>
+                    <button onClick={() => setShowInvoiceImportModal(false)} className="p-2 hover:bg-slate-100 rounded-full"><X size={20}/></button>
+                  </div>
+                  <p className="text-xs text-slate-500 mb-4">Pegar datos de Excel (TABs) o CSV. Orden:<br/><strong>Fecha, Proveedor, Nro, Detalle, Neto, Impuesto, Pago, Vencimiento</strong></p>
+                  <textarea 
+                    className="w-full h-40 bg-slate-50 p-4 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 mb-4 font-mono"
+                    placeholder="2025-10-01	Coca Cola	001-123	Pack 6	1000	210	0	2025-11-01"
+                    value={invoiceImportText}
+                    onChange={(e) => setInvoiceImportText(e.target.value)}
+                  />
+                  <button onClick={handleBulkImportFacturas} disabled={savingFactura} className="w-full bg-slate-800 text-white p-3 rounded-xl text-xs font-bold hover:bg-slate-700 flex justify-center items-center gap-2 disabled:opacity-50">
+                     {savingFactura ? <Loader className="animate-spin" size={16}/> : <Upload size={16} />} 
+                     {savingFactura ? 'Procesando...' : 'Importar Facturas'}
+                  </button>
                 </div>
               </div>
             )}
