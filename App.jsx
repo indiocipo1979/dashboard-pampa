@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { createRoot } from 'react-dom/client';
 import { 
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, ComposedChart, ReferenceLine
 } from 'recharts';
@@ -13,8 +12,8 @@ import { getAuth, signInAnonymously } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
 
 /**
- * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v5.1 (Final)
- * Corrección: Login Multiusuario + Limpieza de espacios en contraseña
+ * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v5.3 (FINAL STABLE)
+ * Corrección: Eliminado renderizado manual para compatibilidad con Canvas/Vercel.
  */
 
 // --- CONFIGURACIÓN FIREBASE OFUSCADA (Anti-Bloqueo) ---
@@ -410,9 +409,12 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] pb-20 font-sans text-slate-900">
+      <Styles />
       <nav className="bg-white border-b border-slate-100 h-20 px-8 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-4">
-          <div className="h-10 w-10 rounded-xl bg-white shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden"><img src={LOGO_URL} alt="Logo" className="h-full w-full object-contain" /></div>
+          <div className="h-10 w-10 rounded-xl bg-white shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden">
+            <img src={LOGO_URL} alt="Logo" className="h-full w-full object-contain" />
+          </div>
           <h1 className="font-black text-lg tracking-tighter uppercase leading-none hidden sm:block">{userRole === 'gerente' ? 'PANEL GERENCIAL' : 'MÓDULO DE CARGA'}</h1>
         </div>
         <div className="flex bg-slate-100 p-1 rounded-2xl">
@@ -440,7 +442,7 @@ const App = () => {
           <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
             <div className="flex items-center gap-3 mb-4 pl-2">
               <div className="bg-amber-100 p-2 rounded-xl text-amber-600"><Sliders size={20} /></div>
-              <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Panel de Control</h3>
+              <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Panel de Control: {currentTab.toUpperCase()}</h3>
             </div>
             <div className="flex flex-wrap gap-6">
               {currentTab === 'economico' && (
@@ -591,7 +593,7 @@ const App = () => {
           </>
         )}
 
-        {/* --- VISTA PROVEEDORES --- */}
+        {/* --- VISTA PROVEEDORES (NUEVO) --- */}
         {currentTab === 'proveedores' && (
           <div className="space-y-6">
             <div className="flex gap-4 mb-4">
@@ -679,6 +681,7 @@ const App = () => {
                     </tbody>
                   </table>
                 </div>
+                {/* Formulario simple para agregar (Demo) */}
                 <div className="mt-8 pt-6 border-t border-slate-100">
                   <h4 className="font-bold text-xs uppercase mb-4 text-slate-500">Nuevo Proveedor</h4>
                   <form onSubmit={(e) => {
@@ -740,11 +743,13 @@ const App = () => {
                     </tbody>
                    </table>
                 </div>
+                 {/* Formulario simple para agregar transacción (Demo) */}
                  <div className="mt-8 pt-6 border-t border-slate-100">
                   <h4 className="font-bold text-xs uppercase mb-4 text-slate-500">Nueva Factura</h4>
                   <form onSubmit={(e) => {
                     e.preventDefault();
                     const formData = new FormData(e.target);
+                    // Buscar nombre proveedor por ID (simulado)
                     const provId = formData.get('providerId');
                     const prov = proveedores.find(p => p.id === provId);
                     
@@ -758,7 +763,7 @@ const App = () => {
                       netAmount: parseFloat(formData.get('netAmount')),
                       taxes: parseFloat(formData.get('taxes')),
                       partialPayment: 0,
-                      totalDebt: parseFloat(formData.get('netAmount')) + parseFloat(formData.get('taxes')), 
+                      totalDebt: parseFloat(formData.get('netAmount')) + parseFloat(formData.get('taxes')), // Simplificado
                       status: 'Pendiente'
                     });
                     e.target.reset();
