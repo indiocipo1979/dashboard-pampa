@@ -13,8 +13,8 @@ import { getAuth, signInAnonymously } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, updateDoc, doc, query, orderBy } from 'firebase/firestore';
 
 /**
- * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v7.0 (Final Stable)
- * Solución: Mejora en el parser de Importación Masiva para soportar Excel (Tabs) correctamente.
+ * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v7.3 (Importación Blindada)
+ * Mejora: Limpieza agresiva de montos ($) y manejo de fechas de Excel.
  */
 
 // --- CONFIGURACIÓN FIREBASE OFUSCADA ---
@@ -38,13 +38,36 @@ const db = getFirestore(appFirebase);
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
 const LOGO_URL = "https://raw.githubusercontent.com/indiocipo1979/dashboard-pampa/813294c2178aefbd20bf295d6968254b5d248790/logo_pampa.png";
 
-// Helpers
+// Helpers Avanzados
 const cleanMonto = (val) => {
   if (typeof val === 'number') return Math.abs(val);
-  const str = String(val || '0').trim();
-  if (str === '' || str === '0') return 0;
-  if (str.includes(',') && str.includes('.')) return Math.abs(parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0);
-  if (str.includes(',')) return Math.abs(parseFloat(str.replace(',', '.')) || 0);
+  let str = String(val || '0').trim();
+  
+  // 1. Eliminar símbolos de moneda y letras ($ y ARS)
+  str = str.replace(/[^0-9.,-]/g, '');
+  
+  if (str === '' || str === '-') return 0;
+
+  // 2. Detectar formato Argentina (1.000,00) vs USA (1,000.00)
+  if (str.includes(',') && str.includes('.')) {
+      // Si el último separador es coma, es decimal (Formato AR/EU)
+      if (str.lastIndexOf(',') > str.lastIndexOf('.')) {
+          str = str.replace(/\./g, '').replace(',', '.');
+      } else {
+          // Formato US
+          str = str.replace(/,/g, '');
+      }
+  } else if (str.includes(',')) {
+      // Solo coma: Asumimos decimal si parece decimal, o miles si son 3 digitos exactos.
+      // Ante la duda en AR, la coma es decimal.
+      str = str.replace(',', '.');
+  } 
+  // Si solo tiene puntos (1.000), en AR es miles, hay que borrarlos.
+  else if (str.includes('.')) {
+      // Eliminar todos los puntos
+      str = str.replace(/\./g, '');
+  }
+
   return Math.abs(parseFloat(str) || 0);
 };
 
@@ -262,7 +285,7 @@ const App = () => {
     alert(`Importación finalizada. Agregados: ${addedCount}`);
   };
 
-  // --- LÓGICA IMPORTACIÓN MASIVA FACTURAS (EASTER EGG) ---
+  // --- LÓGICA IMPORTACIÓN MASIVA FACTURAS BLINDADA ---
   const handleBulkImportFacturas = async () => {
     if (!db || !invoiceImportText.trim()) return;
     setSavingFactura(true);
@@ -273,19 +296,24 @@ const App = () => {
     for (let line of lines) {
       if (!line.trim()) continue;
       
-      // PARSER INTELIGENTE: Detecta Tabs (Excel) o Punto y Coma (CSV)
+      // Parser tolerante: Tabs, punto y coma o coma
       let parts = line.split('\t');
       if (parts.length < 2) parts = line.split(';');
+      if (parts.length < 2) parts = line.split(','); // Fallback para CSV simple
 
       if (parts.length < 5) { errorCount++; continue; }
 
+      // ORDEN ESPERADO: Fecha | Proveedor | Nro | Detalle | Neto | Impuesto | Pago | Vencimiento
       const dateStr = parts[0]?.trim(); 
       const provName = parts[1]?.trim();
       const invNum = parts[2]?.trim();
       const desc = parts[3]?.trim();
+      
+      // Limpieza agresiva de montos
       const net = cleanMonto(parts[4]);
       const tax = cleanMonto(parts[5]);
-      const paid = cleanMonto(parts[6]); // Si está vacío, cleanMonto devuelve 0
+      const paid = cleanMonto(parts[6]); // Si está vacío o es "-", devuelve 0
+      
       const dueStr = parts[7]?.trim();
 
       const prov = proveedores.find(p => p.name.toLowerCase() === provName.toLowerCase());
@@ -309,7 +337,7 @@ const App = () => {
       } catch (e) { errorCount++; }
     }
     setSavingFactura(false); setShowInvoiceImportModal(false); setInvoiceImportText(''); fetchData('proveedores');
-    alert(`Proceso finalizado.\nImportadas: ${addedCount}\nErrores: ${errorCount}`);
+    alert(`Proceso finalizado.\nImportadas: ${addedCount}\nErrores/Omitidas: ${errorCount}`);
   };
 
   const handleAddFactura = async (factura) => {
@@ -681,8 +709,8 @@ const App = () => {
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} />
                   <YAxis hide />
-                  <Tooltip cursor={{fill: 'transparent'}} content={({ active, payload }) => { 
-                    if (active && payload && payload.length) {
+                  <Tooltip cursor={{fill: 'transparent'}} content={({ payload }) => { 
+                    if (payload && payload.length) {
                       const data = payload[0].payload;
                       return (
                         <div className="bg-white p-4 rounded-xl shadow-lg border">
