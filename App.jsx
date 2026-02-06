@@ -13,11 +13,11 @@ import { getAuth, signInAnonymously } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
 
 /**
- * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v4.3
- * Solución: Multiusuario Restaurado (Gerente vs Admin) + Fix Build
+ * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v5.0 (Final Vercel)
+ * Features: Multiusuario + Backend Vercel + Firebase Seguro
  */
 
-// --- CONFIGURACIÓN FIREBASE OFUSCADA ---
+// --- CONFIGURACIÓN FIREBASE OFUSCADA (Anti-Bloqueo) ---
 const REVERSED_KEY = "oKOPUQnl6XSFUpPsPfejfREkzXTPG4RyVADySazIA";
 const getRealKey = () => REVERSED_KEY.split('').reverse().join('');
 
@@ -164,6 +164,7 @@ const App = () => {
       } catch (err) { setError("Error cargando base de datos."); } 
       finally { setLoading(false); }
     } else {
+      // API Vercel
       const sheetParam = targetTab === 'financiero' ? 'financiero' : 'ebitda';
       try {
         const res = await fetch(`/api/get-data?sheet=${sheetParam}`);
@@ -242,7 +243,7 @@ const App = () => {
 
   const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(val);
 
-  // --- MEMOS ---
+  // --- MEMOS DE CÁLCULO ---
   const economicStats = useMemo(() => {
     if (currentTab !== 'economico') return null;
     const filtered = data.filter(d => {
@@ -271,7 +272,10 @@ const App = () => {
     const pesoGastosFijos = ventasNetas > 0 ? (sum(buckets.gastos) / ventasNetas) * 100 : 0;
     const margenBrutoPct = ventasNetas > 0 ? (margenBruto / ventasNetas) * 100 : 0;
 
-    return { ventasNetas, ebitda, margenPct, totalGastos: sum(buckets.gastos), margenBruto, puntoEquilibrio, pesoGastosFijos, margenBrutoPct, buckets };
+    return { 
+      ventasNetas, ebitda, margenPct, totalGastos: sum(buckets.gastos), margenBruto, puntoEquilibrio, pesoGastosFijos, margenBrutoPct,
+      buckets 
+    };
   }, [data, selectedBranch, selectedMonth, currentTab]);
 
   const financialStats = useMemo(() => {
@@ -280,7 +284,9 @@ const App = () => {
 
     const calcularRubro = (textoTipo) => {
       const items = filtered.filter(r => r.Tipo && r.Tipo.toLowerCase().includes(textoTipo));
-      return items.reduce((sum, item) => sum + (item.Entrada || 0), 0) - items.reduce((sum, item) => sum + (item.Salida || 0), 0);
+      const totalEntradas = items.reduce((sum, item) => sum + (item.Entrada || 0), 0);
+      const totalSalidas = items.reduce((sum, item) => sum + (item.Salida || 0), 0);
+      return totalEntradas - totalSalidas; 
     };
 
     const resultadoOperativo = calcularRubro('operativo');
@@ -289,49 +295,51 @@ const App = () => {
     const personalNeto = calcularRubro('personal');
     const financiamientoNeto = calcularRubro('financiamiento'); 
     const aportesNeto = calcularRubro('aporte'); 
-    
-    // Dependencia: (Neto Financiamiento - Neto Aportes)
-    const dependenciaFinanciera = financiamientoNeto - aportesNeto;
-    // Caja Real Final: Operativo + Comprometida + Personal + FinanciamientoNeto (sin Aportes)
+    const dependenciaFinanciera = aportesNeto < 0 ? financiamientoNeto + aportesNeto : financiamientoNeto - aportesNeto;
     const cajaRealFinal = resultadoOperativo + cajaComprometida + personalNeto + financiamientoNeto;
 
-    return { resultadoOperativo, cajaComprometida, cajaLibreReal, personalNeto, financiamientoNeto, dependenciaFinanciera, cajaRealFinal };
+    return { 
+      resultadoOperativo, cajaComprometida, cajaLibreReal, personalNeto, financiamientoNeto, aportesNeto, dependenciaFinanciera, cajaRealFinal
+    };
   }, [data, selectedMonth, currentTab]);
 
   const chartData = useMemo(() => {
-    if (currentTab !== 'economico') return null;
-    const filtered = data.filter(d => (selectedBranch === 'Todas' || d.Sucursal === selectedBranch));
-    const months = [...new Set(filtered.map(d => d.Mes))].sort();
-    
-    const trend = months.map(m => {
-      const p = filtered.filter(d => d.Mes === m);
-      const sumMonto = (arr) => arr.reduce((a, b) => a + (b.Monto || 0), 0);
-      const v = sumMonto(p.filter(r => r.Concepto && (r.Concepto.toLowerCase().includes('venta') || r.Concepto.toLowerCase().includes('ingreso'))));
-      const comis = sumMonto(p.filter(r => r.Concepto && r.Concepto.toLowerCase().includes('comision')));
-      const c = sumMonto(p.filter(r => r.Concepto && r.Concepto.toLowerCase().includes('cmv')));
-      const g = sumMonto(p.filter(r => {
-         const con = (r.Concepto || '').toLowerCase();
-         return (con.includes('gasto') || con.includes('fijo')) && !con.includes('cmv') && !con.includes('comision');
-      }));
-      const ventasNetas = v - comis;
-      const ebitda = ventasNetas - c - g;
-      const margen = ventasNetas - c;
-      const ratio = ventasNetas > 0 ? margen / ventasNetas : 0;
-      const equilibrio = ratio > 0 ? g / ratio : 0;
-      return { name: m, ventas: ventasNetas, ebitda, equilibrio };
-    });
+    if (currentTab === 'economico') {
+      const filtered = data.filter(d => (selectedBranch === 'Todas' || d.Sucursal === selectedBranch));
+      const months = [...new Set(filtered.map(d => d.Mes))].sort();
+      
+      const trend = months.map(m => {
+        const p = filtered.filter(d => d.Mes === m);
+        const sumMonto = (arr) => arr.reduce((a, b) => a + (b.Monto || 0), 0);
+        const v = sumMonto(p.filter(r => r.Concepto && (r.Concepto.toLowerCase().includes('venta') || r.Concepto.toLowerCase().includes('ingreso'))));
+        const comis = sumMonto(p.filter(r => r.Concepto && r.Concepto.toLowerCase().includes('comision')));
+        const c = sumMonto(p.filter(r => r.Concepto && r.Concepto.toLowerCase().includes('cmv')));
+        const g = sumMonto(p.filter(r => {
+           const con = (r.Concepto || '').toLowerCase();
+           return (con.includes('gasto') || con.includes('fijo')) && !con.includes('cmv') && !con.includes('comision');
+        }));
+        const ventasNetas = v - comis;
+        const ebitda = ventasNetas - c - g;
+        const margen = ventasNetas - c;
+        const ratio = ventasNetas > 0 ? margen / ventasNetas : 0;
+        const equilibrio = ratio > 0 ? g / ratio : 0;
+        return { name: m, ventas: ventasNetas, ebitda, equilibrio };
+      });
 
-    const stats = economicStats || { ventasNetas: 0, margenBruto: 0, totalGastos: 0, ebitda: 0, buckets: { cmv: [] } };
-    const cmvTotal = stats.buckets?.cmv ? stats.buckets.cmv.reduce((a,b)=>a+(b.Monto||0),0) : 0;
+      const stats = economicStats || { ventasNetas: 0, margenBruto: 0, totalGastos: 0, ebitda: 0, buckets: { cmv: [] } };
+      const cmvTotal = stats.buckets?.cmv ? stats.buckets.cmv.reduce((a,b)=>a+(b.Monto||0),0) : 0;
 
-    const waterfall = [
-      { name: '1. Ingresos', valor: stats.ventasNetas, base: 0, fill: '#3b82f6', label: 'Ventas Netas' },
-      { name: '2. Mercadería', valor: cmvTotal, base: Math.max(0, stats.margenBruto), fill: '#f97316', label: '- Costo Mercadería' },
-      { name: '3. Margen Bruto', valor: stats.margenBruto, base: 0, fill: '#6366f1', label: '= Margen Bruto' },
-      { name: '4. Gastos', valor: stats.totalGastos, base: Math.max(0, stats.ebitda), fill: '#ef4444', label: '- Gastos Fijos' },
-      { name: '5. EBITDA', valor: stats.ebitda, base: 0, fill: '#10b981', label: '= Resultado' }
-    ];
-    return { trend, waterfall };
+      const waterfall = [
+        { name: '1. Ingresos', valor: stats.ventasNetas, base: 0, fill: '#3b82f6', label: 'Ventas Netas' },
+        { name: '2. Mercadería', valor: cmvTotal, base: Math.max(0, stats.margenBruto), fill: '#f97316', label: '- Costo Mercadería' },
+        { name: '3. Margen Bruto', valor: stats.margenBruto, base: 0, fill: '#6366f1', label: '= Margen Bruto' },
+        { name: '4. Gastos', valor: stats.totalGastos, base: Math.max(0, stats.ebitda), fill: '#ef4444', label: '- Gastos Fijos' },
+        { name: '5. EBITDA', valor: stats.ebitda, base: 0, fill: '#10b981', label: '= Resultado' }
+      ];
+
+      return { trend, waterfall };
+    }
+    return null;
   }, [data, selectedBranch, selectedMonth, currentTab, economicStats]);
 
   const proveedoresStats = useMemo(() => {
@@ -341,7 +349,11 @@ const App = () => {
     const porVencer = facturas.filter(f => f.status !== 'Pagado' && new Date(f.dueDate) >= new Date()).reduce((acc, f) => acc + parseFloat(f.totalDebt || 0), 0);
     
     const provDebt = {};
-    facturas.forEach(f => { if(f.status !== 'Pagado') provDebt[f.providerName] = (provDebt[f.providerName] || 0) + parseFloat(f.totalDebt || 0); });
+    facturas.forEach(f => {
+       if(f.status !== 'Pagado') {
+         provDebt[f.providerName] = (provDebt[f.providerName] || 0) + parseFloat(f.totalDebt || 0);
+       }
+    });
     const topDeudores = Object.entries(provDebt).map(([name, saldo]) => ({ nombre: name, saldo })).sort((a,b) => b.saldo - a.saldo).slice(0,5);
 
     const vencimientosSemana = [
@@ -350,6 +362,7 @@ const App = () => {
       { name: 'Semana 3', deuda: porVencer * 0.4 },
       { name: 'Semana 4', deuda: porVencer * 0.3 },
     ];
+
     return { totalDeuda, vencido, porVencer, topDeudores, vencimientosSemana };
   }, [facturas, currentTab]);
 
@@ -359,6 +372,7 @@ const App = () => {
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <Styles />
         <div className="max-w-md w-full bg-white rounded-[2.5rem] shadow-2xl p-10 text-center border-b-8 border-amber-500 animate-fade-in">
           <div className="flex justify-center mb-8"><img src={LOGO_URL} alt="Logo" className="h-32 object-contain" /></div>
           <h2 className="text-3xl font-black text-slate-800 mb-2 uppercase">Fiambrerías Pampa</h2>
@@ -432,7 +446,7 @@ const App = () => {
           </div>
         )}
 
-        {/* --- VISTAS --- */}
+        {/* --- VISTA ECONÓMICA --- */}
         {currentTab === 'economico' && economicStats && (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -499,6 +513,7 @@ const App = () => {
           </>
         )}
 
+        {/* --- VISTA FINANCIERA --- */}
         {currentTab === 'financiero' && financialStats && (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -526,7 +541,18 @@ const App = () => {
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} />
                   <YAxis hide />
-                  <Tooltip cursor={{fill: 'transparent'}} content={({ payload }) => { if (payload && payload.length) return <div className="bg-white p-4 rounded-xl shadow-lg border"><p className="font-bold text-slate-500 text-xs">{payload[0].payload.label}</p><p className="font-black text-lg">{formatCurrency(payload[0].value)}</p></div>; return null; }} />
+                  <Tooltip cursor={{fill: 'transparent'}} content={({ payload }) => { 
+                    if (payload && payload.length) {
+                      const data = payload[0].payload;
+                      return (
+                        <div className="bg-white p-4 rounded-xl shadow-lg border">
+                          <p className="font-bold text-slate-500 text-xs">{data.label}</p>
+                          <p className={`font-black text-lg ${data.valor < 0 ? 'text-red-600' : 'text-slate-800'}`}>{formatCurrency(data.valor)}</p>
+                        </div>
+                      );
+                    }
+                    return null; 
+                  }} />
                   <Bar dataKey="base" stackId="a" fill="transparent" />
                   <Bar dataKey="valor" stackId="a" radius={[6, 6, 6, 6]}>
                     <Cell fill="#3b82f6" />
@@ -542,7 +568,7 @@ const App = () => {
           </>
         )}
 
-        {/* --- VISTA PROVEEDORES --- */}
+        {/* --- VISTA PROVEEDORES (NUEVO) --- */}
         {currentTab === 'proveedores' && (
           <div className="space-y-6">
             <div className="flex gap-4 mb-4">
@@ -567,6 +593,7 @@ const App = () => {
                      </div>
                   </div>
                 </div>
+
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[400px] overflow-hidden">
                     <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><Briefcase size={16}/> Top Deudores</h3>
@@ -575,7 +602,9 @@ const App = () => {
                         <div key={i} className="flex items-center justify-between p-3 hover:bg-slate-50 rounded-xl transition-colors border-b border-slate-50 last:border-0">
                           <div className="flex items-center gap-3">
                             <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center font-black text-slate-500 text-xs">{p.nombre.substring(0,2).toUpperCase()}</div>
-                            <p className="font-bold text-sm text-slate-700">{p.nombre}</p>
+                            <div>
+                              <p className="font-bold text-sm text-slate-700">{p.nombre}</p>
+                            </div>
                           </div>
                           <p className="font-black text-slate-800">{formatCurrency(p.saldo)}</p>
                         </div>
@@ -627,6 +656,7 @@ const App = () => {
                     </tbody>
                   </table>
                 </div>
+                {/* Formulario simple para agregar (Demo) */}
                 <div className="mt-8 pt-6 border-t border-slate-100">
                   <h4 className="font-bold text-xs uppercase mb-4 text-slate-500">Nuevo Proveedor</h4>
                   <form onSubmit={(e) => {
@@ -688,11 +718,13 @@ const App = () => {
                     </tbody>
                    </table>
                 </div>
+                 {/* Formulario simple para agregar transacción (Demo) */}
                  <div className="mt-8 pt-6 border-t border-slate-100">
                   <h4 className="font-bold text-xs uppercase mb-4 text-slate-500">Nueva Factura</h4>
                   <form onSubmit={(e) => {
                     e.preventDefault();
                     const formData = new FormData(e.target);
+                    // Buscar nombre proveedor por ID (simulado)
                     const provId = formData.get('providerId');
                     const prov = proveedores.find(p => p.id === provId);
                     
@@ -706,7 +738,7 @@ const App = () => {
                       netAmount: parseFloat(formData.get('netAmount')),
                       taxes: parseFloat(formData.get('taxes')),
                       partialPayment: 0,
-                      totalDebt: parseFloat(formData.get('netAmount')) + parseFloat(formData.get('taxes')), 
+                      totalDebt: parseFloat(formData.get('netAmount')) + parseFloat(formData.get('taxes')), // Simplificado
                       status: 'Pendiente'
                     });
                     e.target.reset();
@@ -728,14 +760,18 @@ const App = () => {
             )}
           </div>
         )}
+
       </main>
     </div>
   );
 };
 
 const mockData = [{ Mes: '2024-01', Sucursal: 'Centro', Concepto: 'Ingreso', Subconcepto: 'Efectivo', Monto: 100000 }];
-const root = createRoot(document.getElementById('root'));
-root.render(<App />);
+const container = document.getElementById('root');
+if (container) {
+  const root = createRoot(container);
+  root.render(<App />);
+}
 
 export default App;
 // --- ESTILOS INYECTADOS ---
