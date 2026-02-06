@@ -13,8 +13,8 @@ import { getAuth, signInAnonymously } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
 
 /**
- * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v5.0 (Final Vercel)
- * Features: Multiusuario + Backend Vercel + Firebase Seguro
+ * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v5.1 (Final)
+ * Corrección: Login Multiusuario + Limpieza de espacios en contraseña
  */
 
 // --- CONFIGURACIÓN FIREBASE OFUSCADA (Anti-Bloqueo) ---
@@ -134,11 +134,12 @@ const App = () => {
   const [selectedBranch, setSelectedBranch] = useState('Todas');
   const [selectedMonth, setSelectedMonth] = useState('Acumulado');
 
+  // Estados para Firebase
   const [proveedores, setProveedores] = useState([]);
   const [facturas, setFacturas] = useState([]);
   const [proveedoresSubTab, setProveedoresSubTab] = useState('dashboard'); 
 
-  // Auth Firebase
+  // Auth Firebase (Se activa con la contraseña maestra)
   const connectFirebase = async () => {
     if (!auth) return;
     try {
@@ -155,23 +156,37 @@ const App = () => {
     setUsingMockData(false);
 
     if (targetTab === 'proveedores') {
-      if (!db) { setError("Falta config Firebase"); setLoading(false); return; }
+      if (!db) {
+        setError("Falta configuración de Firebase.");
+        setLoading(false);
+        return;
+      }
       try {
         const provSnap = await getDocs(query(collection(db, 'proveedores'), orderBy('name')));
         setProveedores(provSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+
         const factSnap = await getDocs(query(collection(db, 'facturas'), orderBy('invoiceDate', 'desc')));
         setFacturas(factSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      } catch (err) { setError("Error cargando base de datos."); } 
-      finally { setLoading(false); }
+        
+      } catch (err) {
+        console.error("Firebase Error:", err);
+        setError("Error cargando base de datos. Verifica tu conexión.");
+      } finally {
+        setLoading(false);
+      }
     } else {
-      // API Vercel
+      // Google Sheets (Vía API Vercel)
       const sheetParam = targetTab === 'financiero' ? 'financiero' : 'ebitda';
       try {
         const res = await fetch(`/api/get-data?sheet=${sheetParam}`);
         if (!res.ok) throw new Error("Error del servidor");
         const rawData = await res.json();
-        if (!rawData || rawData.length === 0) { setError("Hoja vacía."); setUsingMockData(true); setData([]); return; }
-        
+        if (!rawData || rawData.length === 0) {
+          setError("Hoja vacía o sin datos.");
+          setUsingMockData(true);
+          setData([]);
+          return;
+        }
         const formatted = rawData.map(item => ({
           ...item,
           Monto: cleanMonto(item.Monto),
@@ -187,10 +202,13 @@ const App = () => {
         }));
         setData(formatted);
       } catch (err) {
-        setError(`Fallo conexión: ${err.message}`);
+        console.error("Error:", err);
+        setError(`Fallo de conexión: ${err.message}`);
         setUsingMockData(true);
         setData(mockData);
-      } finally { setLoading(false); }
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -205,14 +223,15 @@ const App = () => {
     }
   }, [currentTab, isLoggedIn]);
 
-  // --- LÓGICA DE LOGIN MULTIUSUARIO ---
   const handleLogin = (e) => {
     e.preventDefault();
-    if (password === 'Pampa2026') {
+    const passInput = password.trim(); // Limpia espacios accidentales
+    
+    if (passInput === 'Pampa2026') {
       setUserRole('gerente');
       setIsLoggedIn(true);
       setCurrentTab('economico');
-    } else if (password === 'PampaCarga') {
+    } else if (passInput === 'PampaCarga') {
       setUserRole('admin');
       setIsLoggedIn(true);
       setCurrentTab('proveedores');
@@ -222,23 +241,26 @@ const App = () => {
     }
   };
 
-  // --- ACTIONS FIREBASE ---
+  // --- ACCIONES FIREBASE ---
   const handleAddFactura = async (factura) => {
     if (!db) return;
-    try { await addDoc(collection(db, 'facturas'), factura); fetchData('proveedores'); } 
-    catch (e) { alert("Error al guardar"); }
+    try {
+      await addDoc(collection(db, 'facturas'), factura);
+      fetchData('proveedores'); 
+    } catch (e) { console.error(e); alert("Error al guardar"); }
   };
 
    const handleAddProveedor = async (prov) => {
     if (!db) return;
-    try { await addDoc(collection(db, 'proveedores'), prov); fetchData('proveedores'); } 
-    catch (e) { alert("Error al guardar"); }
+    try {
+      await addDoc(collection(db, 'proveedores'), prov);
+      fetchData('proveedores');
+    } catch (e) { console.error(e); alert("Error al guardar"); }
   };
 
   const handleDeleteFactura = async (id) => {
     if (!confirm("¿Borrar factura?")) return;
-    try { await deleteDoc(doc(db, 'facturas', id)); fetchData('proveedores'); } 
-    catch(e){ console.error(e); }
+    try { await deleteDoc(doc(db, 'facturas', id)); fetchData('proveedores'); } catch(e){ console.error(e); }
   };
 
   const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(val);
@@ -342,6 +364,7 @@ const App = () => {
     return null;
   }, [data, selectedBranch, selectedMonth, currentTab, economicStats]);
 
+  // --- KPI PROVEEDORES ---
   const proveedoresStats = useMemo(() => {
     if (currentTab !== 'proveedores') return null;
     const totalDeuda = facturas.filter(f => f.status !== 'Pagado').reduce((acc, f) => acc + parseFloat(f.totalDebt || 0), 0);
@@ -568,7 +591,7 @@ const App = () => {
           </>
         )}
 
-        {/* --- VISTA PROVEEDORES (NUEVO) --- */}
+        {/* --- VISTA PROVEEDORES --- */}
         {currentTab === 'proveedores' && (
           <div className="space-y-6">
             <div className="flex gap-4 mb-4">
@@ -656,7 +679,6 @@ const App = () => {
                     </tbody>
                   </table>
                 </div>
-                {/* Formulario simple para agregar (Demo) */}
                 <div className="mt-8 pt-6 border-t border-slate-100">
                   <h4 className="font-bold text-xs uppercase mb-4 text-slate-500">Nuevo Proveedor</h4>
                   <form onSubmit={(e) => {
@@ -718,13 +740,11 @@ const App = () => {
                     </tbody>
                    </table>
                 </div>
-                 {/* Formulario simple para agregar transacción (Demo) */}
                  <div className="mt-8 pt-6 border-t border-slate-100">
                   <h4 className="font-bold text-xs uppercase mb-4 text-slate-500">Nueva Factura</h4>
                   <form onSubmit={(e) => {
                     e.preventDefault();
                     const formData = new FormData(e.target);
-                    // Buscar nombre proveedor por ID (simulado)
                     const provId = formData.get('providerId');
                     const prov = proveedores.find(p => p.id === provId);
                     
@@ -738,7 +758,7 @@ const App = () => {
                       netAmount: parseFloat(formData.get('netAmount')),
                       taxes: parseFloat(formData.get('taxes')),
                       partialPayment: 0,
-                      totalDebt: parseFloat(formData.get('netAmount')) + parseFloat(formData.get('taxes')), // Simplificado
+                      totalDebt: parseFloat(formData.get('netAmount')) + parseFloat(formData.get('taxes')), 
                       status: 'Pendiente'
                     });
                     e.target.reset();
