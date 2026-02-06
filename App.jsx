@@ -4,7 +4,7 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, ComposedChart, ReferenceLine
 } from 'recharts';
 import { 
-  LayoutDashboard, TrendingUp, DollarSign, Percent, Store, Calendar, RefreshCcw, LogOut, ChevronRight, FileText, ArrowRight, Wallet, AlertTriangle, CheckCircle, HelpCircle, Activity, Scale, Filter, BarChart2, PieChart as PieIcon, Sliders, Banknote, Users, ArrowLeftRight, CreditCard, PiggyBank, Landmark, Briefcase, PlusCircle, Clock, AlertOctagon, Search, Trash2, Edit, Save, X, UserCog, User
+  LayoutDashboard, TrendingUp, DollarSign, Percent, Store, Calendar, RefreshCcw, LogOut, ChevronRight, FileText, ArrowRight, Wallet, AlertTriangle, CheckCircle, HelpCircle, Activity, Scale, Filter, BarChart2, PieChart as PieIcon, Sliders, Banknote, Users, ArrowLeftRight, CreditCard, PiggyBank, Landmark, Briefcase, PlusCircle, Clock, AlertOctagon, Search, Trash2, Edit, Save, X, UserCog, User, Upload
 } from 'lucide-react';
 
 // FIREBASE IMPORTS
@@ -13,8 +13,8 @@ import { getAuth, signInAnonymously } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, updateDoc, doc, query, orderBy } from 'firebase/firestore';
 
 /**
- * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v6.1
- * Corrección: Validación de Duplicados + Fix de Commit en GitHub
+ * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v6.3
+ * Feature: Gestión de Pagos Parciales (Total vs Saldo)
  */
 
 // --- CONFIGURACIÓN FIREBASE OFUSCADA ---
@@ -139,10 +139,14 @@ const App = () => {
   const [facturas, setFacturas] = useState([]);
   const [proveedoresSubTab, setProveedoresSubTab] = useState('dashboard'); 
   
-  // Estado para Modal de Proveedores
+  // Estado para Modales
   const [showProvModal, setShowProvModal] = useState(false);
   const [editingProv, setEditingProv] = useState(null);
   const [savingProv, setSavingProv] = useState(false);
+  
+  // Nuevo Estado para Importación Masiva
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importText, setImportText] = useState('');
 
   // Auth Firebase
   const connectFirebase = async () => {
@@ -259,7 +263,7 @@ const App = () => {
 
     // 1. Validación de Duplicados
     const isDuplicate = proveedores.some(p => {
-      if (editingProv && p.id === editingProv.id) return false; // Ignorar si es el mismo que editamos
+      if (editingProv && p.id === editingProv.id) return false;
       const sameName = p.name.toLowerCase() === name.toLowerCase();
       const sameCuit = cuit && p.cuit && p.cuit === cuit;
       return sameName || sameCuit;
@@ -271,7 +275,6 @@ const App = () => {
       return; 
     }
 
-    // 2. Guardado
     const newProv = { name, phone, cuit, address };
 
     try {
@@ -289,6 +292,36 @@ const App = () => {
     } finally {
       setSavingProv(false);
     }
+  };
+
+  const handleBulkImport = async () => {
+    if (!db || !importText.trim()) return;
+    setSavingProv(true);
+    const lines = importText.split('\n');
+    let addedCount = 0;
+
+    for (let line of lines) {
+      if (!line.trim()) continue;
+      const parts = line.split(',');
+      if (parts.length < 1) continue;
+      const name = parts[0]?.trim();
+      const phone = parts[1]?.trim() || '';
+      const cuit = parts[2]?.trim() || '';
+      const address = parts[3]?.trim() || '';
+      if (!name) continue;
+      const exists = proveedores.some(p => p.name.toLowerCase() === name.toLowerCase());
+      if (!exists) {
+        try {
+          await addDoc(collection(db, 'proveedores'), { name, phone, cuit, address });
+          addedCount++;
+        } catch (e) { console.error(e); }
+      }
+    }
+    setSavingProv(false);
+    setShowImportModal(false);
+    setImportText('');
+    fetchData('proveedores');
+    alert(`Importación finalizada. Agregados: ${addedCount}`);
   };
 
   const handleAddFactura = async (factura) => {
@@ -420,21 +453,40 @@ const App = () => {
     return null;
   }, [data, selectedBranch, selectedMonth, currentTab, economicStats]);
 
-  // --- KPI PROVEEDORES ---
+  // --- KPI PROVEEDORES (MODIFICADO: Lógica de Pagos Parciales) ---
   const proveedoresStats = useMemo(() => {
     if (currentTab !== 'proveedores') return null;
-    const totalDeuda = facturas.filter(f => f.status !== 'Pagado').reduce((acc, f) => acc + parseFloat(f.totalDebt || 0), 0);
-    const vencido = facturas.filter(f => f.status !== 'Pagado' && new Date(f.dueDate) < new Date()).reduce((acc, f) => acc + parseFloat(f.totalDebt || 0), 0);
-    const porVencer = facturas.filter(f => f.status !== 'Pagado' && new Date(f.dueDate) >= new Date()).reduce((acc, f) => acc + parseFloat(f.totalDebt || 0), 0);
+    
+    // Calculamos el saldo real (deuda) considerando pagos parciales
+    const facturasCalculadas = facturas.map(f => {
+      // Usamos || 0 para evitar NaN si el campo no existe o es vacío
+      const net = parseFloat(f.netAmount) || 0;
+      const tax = parseFloat(f.taxes) || 0;
+      const total = net + tax;
+      const paid = parseFloat(f.partialPayment) || 0;
+      const debt = total - paid;
+      
+      // Estado dinámico
+      let computedStatus = 'Pendiente';
+      if (debt <= 0.5) computedStatus = 'Pagado'; // Tolerancia de 50 centavos
+      else if (paid > 0) computedStatus = 'Parcial';
+
+      return { ...f, total, debt, computedStatus };
+    });
+
+    const totalDeuda = facturasCalculadas.filter(f => f.computedStatus !== 'Pagado').reduce((acc, f) => acc + f.debt, 0);
+    const vencido = facturasCalculadas.filter(f => f.computedStatus !== 'Pagado' && new Date(f.dueDate) < new Date()).reduce((acc, f) => acc + f.debt, 0);
+    const porVencer = facturasCalculadas.filter(f => f.computedStatus !== 'Pagado' && new Date(f.dueDate) >= new Date()).reduce((acc, f) => acc + f.debt, 0);
     
     const provDebt = {};
-    facturas.forEach(f => {
-       if(f.status !== 'Pagado') {
-         provDebt[f.providerName] = (provDebt[f.providerName] || 0) + parseFloat(f.totalDebt || 0);
+    facturasCalculadas.forEach(f => {
+       if(f.computedStatus !== 'Pagado') {
+         provDebt[f.providerName] = (provDebt[f.providerName] || 0) + f.debt;
        }
     });
     const topDeudores = Object.entries(provDebt).map(([name, saldo]) => ({ nombre: name, saldo })).sort((a,b) => b.saldo - a.saldo).slice(0,5);
 
+    // Vencimientos por Semana (Simulado visual para datos demo)
     const vencimientosSemana = [
       { name: 'Semana 1', deuda: vencido * 0.4 },
       { name: 'Semana 2', deuda: vencido * 0.2 + porVencer * 0.3 },
@@ -442,7 +494,7 @@ const App = () => {
       { name: 'Semana 4', deuda: porVencer * 0.3 },
     ];
 
-    return { totalDeuda, vencido, porVencer, topDeudores, vencimientosSemana };
+    return { totalDeuda, vencido, porVencer, topDeudores, vencimientosSemana, facturasCalculadas };
   }, [facturas, currentTab]);
 
   const branches = ['Todas', ...new Set(data.map(d => d.Sucursal))].filter(Boolean);
@@ -466,7 +518,6 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] pb-20 font-sans text-slate-900">
-      <Styles />
       <nav className="bg-white border-b border-slate-100 h-20 px-8 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-4">
           <div className="h-10 w-10 rounded-xl bg-white shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden"><img src={LOGO_URL} alt="Logo" className="h-full w-full object-contain" /></div>
@@ -497,7 +548,7 @@ const App = () => {
           <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
             <div className="flex items-center gap-3 mb-4 pl-2">
               <div className="bg-amber-100 p-2 rounded-xl text-amber-600"><Sliders size={20} /></div>
-              <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Panel de Control</h3>
+              <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Panel de Control: {currentTab.toUpperCase()}</h3>
             </div>
             <div className="flex flex-wrap gap-6">
               {currentTab === 'economico' && (
@@ -648,7 +699,7 @@ const App = () => {
           </>
         )}
 
-        {/* --- VISTA PROVEEDORES --- */}
+        {/* --- VISTA PROVEEDORES (NUEVO) --- */}
         {currentTab === 'proveedores' && (
           <div className="space-y-6">
             <div className="flex gap-4 mb-4">
@@ -706,63 +757,61 @@ const App = () => {
             )}
 
             {proveedoresSubTab === 'base' && (
-              <>
-                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-                  <div className="flex justify-between items-center mb-6">
-                    <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Base de Proveedores</h3>
-                    <button className="bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-600" onClick={openNewModal}>+ Agregar</button>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead>
-                        <tr className="border-b border-slate-100 text-slate-400 uppercase tracking-wider">
-                          <th className="p-3">Nombre</th>
-                          <th className="p-3">Teléfono</th>
-                          <th className="p-3">CUIT</th>
-                          <th className="p-3">Dirección</th>
-                          <th className="p-3 text-center">Acciones</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-50">
-                        {proveedores.map((p) => (
-                          <tr key={p.id} className="hover:bg-slate-50">
-                            <td className="p-3 font-bold text-slate-700">{p.name}</td>
-                            <td className="p-3 text-slate-500">{p.phone}</td>
-                            <td className="p-3 text-slate-500">{p.cuit}</td>
-                            <td className="p-3 text-slate-500">{p.address}</td>
-                            <td className="p-3 text-center flex justify-center gap-3">
-                               <button onClick={() => openEditModal(p)} className="text-blue-500 hover:text-blue-700"><Edit size={16}/></button>
-                               <button onClick={() => handleDeleteProveedor(p.id)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button>
-                            </td>
-                          </tr>
-                        ))}
-                        {proveedores.length === 0 && <tr><td colSpan="5" className="p-4 text-center text-slate-400">No hay proveedores cargados.</td></tr>}
-                      </tbody>
-                    </table>
-                  </div>
+              <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Base de Proveedores</h3>
+                  <button className="bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-600" onClick={openNewModal}>+ Agregar</button>
                 </div>
-
-                {/* MODAL AGREGAR/EDITAR PROVEEDOR */}
-                {showProvModal && (
-                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-3xl p-8 w-full max-w-lg shadow-2xl animate-fade-in">
-                      <div className="flex justify-between items-center mb-6">
-                        <h3 className="font-black text-lg text-slate-800 uppercase">{editingProv ? 'Editar Proveedor' : 'Nuevo Proveedor'}</h3>
-                        <button onClick={() => setShowProvModal(false)} className="p-2 hover:bg-slate-100 rounded-full"><X size={20}/></button>
-                      </div>
-                      <form onSubmit={handleSaveProveedor} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <input name="name" defaultValue={editingProv?.name} placeholder="Nombre" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 w-full" required />
-                        <input name="phone" defaultValue={editingProv?.phone} placeholder="Teléfono" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 w-full" />
-                        <input name="cuit" defaultValue={editingProv?.cuit} placeholder="CUIT" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 w-full" />
-                        <input name="address" defaultValue={editingProv?.address} placeholder="Dirección" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 w-full" />
-                        <button type="submit" className="md:col-span-2 bg-slate-800 text-white p-3 rounded-xl text-xs font-bold hover:bg-slate-700 flex justify-center items-center gap-2">
-                           <Save size={16} /> {editingProv ? 'Guardar Cambios' : 'Crear Proveedor'}
-                        </button>
-                      </form>
-                    </div>
-                  </div>
-                )}
-              </>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-100 text-slate-400 uppercase tracking-wider">
+                        <th className="p-3">Nombre</th>
+                        <th className="p-3">Teléfono</th>
+                        <th className="p-3">CUIT</th>
+                        <th className="p-3">Dirección</th>
+                        <th className="p-3 text-center">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {proveedores.map((p) => (
+                        <tr key={p.id} className="hover:bg-slate-50">
+                          <td className="p-3 font-bold text-slate-700">{p.name}</td>
+                          <td className="p-3 text-slate-500">{p.phone}</td>
+                          <td className="p-3 text-slate-500">{p.cuit}</td>
+                          <td className="p-3 text-slate-500">{p.address}</td>
+                          <td className="p-3 text-center flex justify-center gap-3">
+                             <button onClick={() => openEditModal(p)} className="text-blue-500 hover:text-blue-700"><Edit size={16}/></button>
+                             <button onClick={() => handleDeleteProveedor(p.id)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button>
+                          </td>
+                        </tr>
+                      ))}
+                      {proveedores.length === 0 && <tr><td colSpan="5" className="p-4 text-center text-slate-400">No hay proveedores cargados.</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+                {/* Formulario simple para agregar (Demo) */}
+                <div className="mt-8 pt-6 border-t border-slate-100">
+                  <h4 className="font-bold text-xs uppercase mb-4 text-slate-500">Nuevo Proveedor</h4>
+                  <form onSubmit={(e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.target);
+                    handleAddProveedor({
+                      name: formData.get('name'),
+                      phone: formData.get('phone'),
+                      cuit: formData.get('cuit'),
+                      address: formData.get('address'),
+                    });
+                    e.target.reset();
+                  }} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <input name="name" placeholder="Nombre" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" required />
+                    <input name="phone" placeholder="Teléfono" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" />
+                    <input name="cuit" placeholder="CUIT" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" />
+                    <input name="address" placeholder="Dirección" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" />
+                    <button type="submit" className="md:col-span-4 bg-slate-800 text-white p-3 rounded-xl text-xs font-bold hover:bg-slate-700">Guardar Proveedor</button>
+                  </form>
+                </div>
+              </div>
             )}
 
             {proveedoresSubTab === 'operaciones' && (
@@ -778,28 +827,37 @@ const App = () => {
                         <th className="p-3">Proveedor</th>
                         <th className="p-3">Nro Factura</th>
                         <th className="p-3">Detalle</th>
-                        <th className="p-3 text-right">Total</th>
+                        <th className="p-3 text-right">Total Fac.</th>
+                        <th className="p-3 text-right">Pagado</th>
+                        <th className="p-3 text-right">Saldo Deuda</th>
                         <th className="p-3 text-center">Estado</th>
                         <th className="p-3 text-center">Acciones</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
-                      {facturas.map((f) => (
+                      {proveedoresStats.facturasCalculadas.map((f) => (
                         <tr key={f.id} className="hover:bg-slate-50">
                           <td className="p-3 text-slate-500">{f.invoiceDate}</td>
                           <td className="p-3 font-bold text-slate-700">{f.providerName}</td>
                           <td className="p-3 text-slate-500">{f.invoiceNumber}</td>
                           <td className="p-3 text-slate-500">{f.description}</td>
-                          <td className="p-3 text-right font-mono font-bold text-slate-800">{formatCurrency(f.totalDebt)}</td>
+                          <td className="p-3 text-right font-mono text-slate-600">{formatCurrency(f.total)}</td>
+                          <td className="p-3 text-right font-mono text-emerald-600">{formatCurrency(f.partialPayment || 0)}</td>
+                          <td className="p-3 text-right font-mono font-bold text-red-600">{formatCurrency(f.debt)}</td>
                           <td className="p-3 text-center">
-                            <span className={`px-2 py-1 rounded-full text-[9px] font-bold uppercase ${f.status === 'Pagado' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>{f.status}</span>
+                            <span className={`px-2 py-1 rounded-full text-[9px] font-bold uppercase 
+                              ${f.computedStatus === 'Pagado' ? 'bg-emerald-100 text-emerald-600' : 
+                                f.computedStatus === 'Parcial' ? 'bg-amber-100 text-amber-600' : 
+                                'bg-red-100 text-red-600'}`}>
+                              {f.computedStatus}
+                            </span>
                           </td>
                            <td className="p-3 text-center">
                              <button onClick={() => handleDeleteFactura(f.id)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button>
                           </td>
                         </tr>
                       ))}
-                       {facturas.length === 0 && <tr><td colSpan="7" className="p-4 text-center text-slate-400">No hay facturas cargadas.</td></tr>}
+                       {facturas.length === 0 && <tr><td colSpan="9" className="p-4 text-center text-slate-400">No hay facturas cargadas.</td></tr>}
                     </tbody>
                    </table>
                 </div>
@@ -822,9 +880,8 @@ const App = () => {
                       description: formData.get('description'),
                       netAmount: parseFloat(formData.get('netAmount')),
                       taxes: parseFloat(formData.get('taxes')),
-                      partialPayment: 0,
-                      totalDebt: parseFloat(formData.get('netAmount')) + parseFloat(formData.get('taxes')), // Simplificado
-                      status: 'Pendiente'
+                      partialPayment: parseFloat(formData.get('initialPayment')) || 0,
+                      status: 'Pendiente' // Se recalcula al mostrar
                     });
                     e.target.reset();
                   }} className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -834,9 +891,12 @@ const App = () => {
                      </select>
                      <input name="invoiceNumber" placeholder="Nro Factura" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" required />
                      <input name="invoiceDate" type="date" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" required />
-                     <input name="dueDate" type="date" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" required />
+                     <input name="dueDate" type="date" placeholder="Vencimiento" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" required />
+                     
                      <input name="netAmount" type="number" step="0.01" placeholder="Monto Neto" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" required />
                      <input name="taxes" type="number" step="0.01" placeholder="Impuestos" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" required />
+                     <input name="initialPayment" type="number" step="0.01" placeholder="Pago / Entrega Inicial" className="bg-emerald-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-600 font-bold text-emerald-700" />
+                     
                      <input name="description" placeholder="Descripción / Detalle" className="md:col-span-3 bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" />
                      <button type="submit" className="md:col-span-3 bg-slate-800 text-white p-3 rounded-xl text-xs font-bold hover:bg-slate-700">Guardar Factura</button>
                   </form>
