@@ -13,8 +13,8 @@ import { getAuth, signInAnonymously } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, updateDoc, doc, query, orderBy } from 'firebase/firestore';
 
 /**
- * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v6.7
- * Mejoras: Feedback de carga (Spinners) y Corrección Tooltip Cascada
+ * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v6.8
+ * Mejoras: Loader Global de Carga + Fix Tooltip Cascada + Feedback en Botones
  */
 
 // --- CONFIGURACIÓN FIREBASE OFUSCADA ---
@@ -108,8 +108,8 @@ const GaugeCard = ({ title, value, max = 100, type = 'higherIsBetter', suffix = 
         <div className="absolute bottom-0 left-2 text-[9px] font-bold text-slate-300">0{suffix}</div>
         <div className="absolute bottom-0 right-2 text-[9px] font-bold text-slate-300">{max}{suffix}</div>
       </div>
-      <div className="text-center mt-2 z-20">
-         <span className="text-3xl font-black text-slate-800 tracking-tight">{value}{suffix}</span>
+      <div className="text-center -mt-6 z-20 relative">
+         <span className="text-3xl font-black text-slate-800 bg-white/80 px-2 rounded-lg backdrop-blur-sm">{value}{suffix}</span>
       </div>
     </div>
   );
@@ -434,7 +434,6 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] pb-20 font-sans text-slate-900">
-      <Styles />
       <nav className="bg-white border-b border-slate-100 h-20 px-8 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-4">
           <div className="h-10 w-10 rounded-xl bg-white shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden"><img src={LOGO_URL} alt="Logo" className="h-full w-full object-contain" /></div>
@@ -457,6 +456,14 @@ const App = () => {
           <button onClick={() => { setIsLoggedIn(false); setUserRole(null); }} className="bg-slate-900 text-white px-6 py-2.5 rounded-2xl text-xs font-bold">SALIR</button>
         </div>
       </nav>
+
+      {/* --- LOADER GLOBAL --- */}
+      {loading && (
+        <div className="fixed inset-0 bg-white/80 z-50 flex flex-col items-center justify-center backdrop-blur-sm animate-fade-in">
+           <Loader className="w-10 h-10 text-slate-800 animate-spin mb-4" />
+           <p className="text-slate-500 font-bold text-xs uppercase tracking-widest">Cargando Datos...</p>
+        </div>
+      )}
 
       <main className="max-w-7xl mx-auto px-8 mt-10 space-y-10 animate-fade-in">
         
@@ -549,6 +556,7 @@ const App = () => {
                         <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} interval={0} />
                         <Tooltip cursor={{fill: 'transparent'}} content={({ active, payload }) => { 
                           if (active && payload && payload.length) {
+                            // Corrección Tooltip Cascada: Leemos el valor directo del payload, no de la barra base
                             const data = payload[0].payload;
                             return (
                               <div className="bg-white p-4 rounded-xl shadow-lg border">
@@ -627,7 +635,7 @@ const App = () => {
           </>
         )}
 
-        {/* --- VISTA PROVEEDORES (NUEVO) --- */}
+        {/* --- VISTA PROVEEDORES --- */}
         {currentTab === 'proveedores' && (
           <div className="space-y-6">
             <div className="flex gap-4 mb-4">
