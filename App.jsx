@@ -4,7 +4,7 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, ComposedChart, ReferenceLine
 } from 'recharts';
 import { 
-  LayoutDashboard, TrendingUp, DollarSign, Percent, Store, Calendar, RefreshCcw, LogOut, ChevronRight, FileText, ArrowRight, Wallet, AlertTriangle, CheckCircle, HelpCircle, Activity, Scale, Filter, BarChart2, PieChart as PieIcon, Sliders, Banknote, Users, ArrowLeftRight, CreditCard, PiggyBank, Landmark, Briefcase, PlusCircle, Clock, AlertOctagon, Search, Trash2, Edit, Save, X, UserCog, User, Upload, Loader
+  LayoutDashboard, TrendingUp, DollarSign, Percent, Store, Calendar, RefreshCcw, LogOut, ChevronRight, FileText, ArrowRight, Wallet, AlertTriangle, CheckCircle, HelpCircle, Activity, Scale, Filter, BarChart2, PieChart as PieIcon, Sliders, Banknote, Users, ArrowLeftRight, CreditCard, PiggyBank, Landmark, Briefcase, PlusCircle, Clock, AlertOctagon, Search, Trash2, Edit, Save, X, UserCog, User, Upload, Loader, Download
 } from 'lucide-react';
 
 // FIREBASE IMPORTS
@@ -13,8 +13,8 @@ import { getAuth, signInAnonymously } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, updateDoc, doc, query, orderBy } from 'firebase/firestore';
 
 /**
- * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v7.3 (Importación Blindada)
- * Mejora: Limpieza agresiva de montos ($) y manejo de fechas de Excel.
+ * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v7.4
+ * Feature: Exportación a Excel (CSV) de las transacciones.
  */
 
 // --- CONFIGURACIÓN FIREBASE OFUSCADA ---
@@ -356,6 +356,44 @@ const App = () => {
   const handleDeleteProveedor = async (id) => {
     if (!confirm("¿Borrar proveedor?")) return;
     try { await deleteDoc(doc(db, 'proveedores', id)); fetchData('proveedores'); } catch(e){ console.error(e); }
+  };
+
+  const handleExportExcel = () => {
+    if (proveedoresStats?.facturasCalculadas.length === 0) {
+      alert("No hay datos para exportar.");
+      return;
+    }
+    
+    // Definir encabezados
+    const headers = ["Fecha", "Proveedor", "Nro Factura", "Detalle", "Total", "Pagado", "Deuda", "Estado", "Vencimiento"];
+    
+    // Convertir datos
+    const csvContent = [
+      headers.join(","),
+      ...proveedoresStats.facturasCalculadas.map(f => {
+        return [
+          f.invoiceDate,
+          `"${f.providerName}"`, // Comillas para evitar problemas con comas en nombres
+          f.invoiceNumber,
+          `"${f.description}"`,
+          f.total,
+          f.partialPayment || 0,
+          f.debt,
+          f.computedStatus,
+          f.dueDate
+        ].join(",");
+      })
+    ].join("\n");
+
+    // Crear blob y descargar
+    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `transacciones_pampa_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const openEditModal = (prov) => { setEditingProv(prov); setShowProvModal(true); };
@@ -736,7 +774,7 @@ const App = () => {
           </>
         )}
 
-        {/* --- VISTA PROVEEDORES --- */}
+        {/* --- VISTA PROVEEDORES (NUEVO) --- */}
         {currentTab === 'proveedores' && (
           <div className="space-y-6">
             <div className="flex gap-4 mb-4">
@@ -758,6 +796,17 @@ const App = () => {
                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Próximos Vencimientos</p>
                        <h3 className="text-2xl font-black text-slate-800 mt-1">Ver Calendario</h3>
                        <p className="text-[10px] text-slate-500 mt-2 font-medium bg-slate-50 p-2 rounded-lg leading-snug">Detalle semanal abajo</p>
+                     </div>
+                  </div>
+                  {/* KPI DE SALDO A FAVOR (NUEVO) */}
+                  <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col justify-between">
+                     <div className="flex justify-between items-start mb-4">
+                       <div className="p-3 rounded-2xl bg-blue-100 text-blue-600 bg-opacity-10"><ThumbsUp className="w-6 h-6"/></div>
+                     </div>
+                     <div>
+                       <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Saldo a Favor</p>
+                       <h3 className="text-2xl font-black text-blue-600 mt-1">{formatCurrency(proveedoresStats.totalCredito)}</h3>
+                       <p className="text-[10px] text-slate-500 mt-2 font-medium bg-slate-50 p-2 rounded-lg leading-snug">Pagos anticipados</p>
                      </div>
                   </div>
                 </div>
@@ -886,13 +935,18 @@ const App = () => {
               <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
                  <div className="flex justify-between items-center mb-6">
                   {/* EASTER EGG TRIGGER */}
-                  <h3 
-                    onDoubleClick={() => setShowInvoiceImportModal(true)}
-                    className="font-black text-sm uppercase tracking-widest text-slate-600 cursor-pointer select-none hover:text-slate-800 transition-colors"
-                    title="Doble clic para importar"
-                  >
-                    Transacciones
-                  </h3>
+                  <div className="flex items-center gap-4">
+                    <h3 
+                      onDoubleClick={() => setShowInvoiceImportModal(true)}
+                      className="font-black text-sm uppercase tracking-widest text-slate-600 cursor-pointer select-none hover:text-slate-800 transition-colors"
+                      title="Doble clic para importar"
+                    >
+                      Transacciones
+                    </h3>
+                    <button onClick={handleExportExcel} className="bg-green-100 text-green-700 px-3 py-1 rounded-lg text-[10px] font-bold uppercase flex items-center gap-1 hover:bg-green-200">
+                      <Download size={12} /> Exportar Excel
+                    </button>
+                  </div>
                 </div>
                 <div className="overflow-x-auto">
                    <table className="w-full text-left text-xs">
