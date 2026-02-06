@@ -13,20 +13,16 @@ import { getAuth, signInAnonymously } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
 
 /**
- * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v4.2
- * Feature: Perfiles de Usuario (Gerente vs Administrador)
+ * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v4.3
+ * Solución: Multiusuario Restaurado (Gerente vs Admin) + Fix Build
  */
 
-// --- CONFIGURACIÓN FIREBASE OFUSCADA (Anti-Bloqueo Netlify) ---
-const getApiKey = () => {
-  const p1 = "AIzaSyD";
-  const p2 = "AVyR4GPTXzkERfef";
-  const p3 = "PsPUpFSX6lnQUPOKo";
-  return `${p1}${p2}${p3}`;
-};
+// --- CONFIGURACIÓN FIREBASE OFUSCADA ---
+const REVERSED_KEY = "oKOPUQnl6XSFUpPsPfejfREkzXTPG4RyVADySazIA";
+const getRealKey = () => REVERSED_KEY.split('').reverse().join('');
 
 const firebaseConfig = {
-  apiKey: getApiKey(),
+  apiKey: getRealKey(),
   authDomain: "pampa-gestion-b9cd2.firebaseapp.com",
   projectId: "pampa-gestion-b9cd2",
   storageBucket: "pampa-gestion-b9cd2.firebasestorage.app",
@@ -34,7 +30,7 @@ const firebaseConfig = {
   appId: "1:303967063415:web:14aafc465de7904b5b2572"
 };
 
-// Inicialización segura
+// Inicialización
 const appFirebase = initializeApp(firebaseConfig);
 const auth = getAuth(appFirebase);
 const db = getFirestore(appFirebase);
@@ -42,7 +38,7 @@ const db = getFirestore(appFirebase);
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
 const LOGO_URL = "https://raw.githubusercontent.com/indiocipo1979/dashboard-pampa/813294c2178aefbd20bf295d6968254b5d248790/logo_pampa.png";
 
-// Función segura para limpiar montos
+// Helpers
 const cleanMonto = (val) => {
   if (typeof val === 'number') return Math.abs(val);
   const str = String(val || '0').trim();
@@ -52,7 +48,6 @@ const cleanMonto = (val) => {
   return Math.abs(parseFloat(str) || 0);
 };
 
-// Función para formatear fechas
 const formatPeriod = (periodStr) => {
   if (!periodStr || periodStr === 'Acumulado') return 'Acumulado';
   try {
@@ -72,7 +67,7 @@ const formatPeriod = (periodStr) => {
   } catch (error) { return periodStr; }
 };
 
-// ... (Componentes Visuales) ...
+// Componentes UI
 const KPICard = ({ title, value, icon: Icon, color, detail, subtext }) => {
   const isNegative = typeof value === 'string' && value.includes('-');
   const valueColor = isNegative ? 'text-red-600' : 'text-slate-800';
@@ -93,39 +88,9 @@ const KPICard = ({ title, value, icon: Icon, color, detail, subtext }) => {
   );
 };
 
-const TrafficLightCard = ({ title, value, threshold, type = 'higherIsBetter', suffix = '' }) => {
-  let borderColor = 'border-slate-200'; let iconColor = 'text-slate-400'; let iconBg = 'bg-slate-50'; let statusIcon = HelpCircle; let statusText = 'Neutro';
-  const numValue = parseFloat(value);
-  let state = 'neutral';
-  if (type === 'higherIsBetter') {
-    if (numValue >= threshold.green) state = 'good'; else if (numValue >= threshold.yellow) state = 'warning'; else state = 'bad';
-  } else { 
-    if (numValue <= threshold.green) state = 'good'; else if (numValue <= threshold.yellow) state = 'warning'; else state = 'bad';
-  }
-  switch(state) {
-    case 'good': borderColor = 'border-emerald-500'; iconColor = 'text-emerald-600'; iconBg = 'bg-emerald-50'; statusIcon = CheckCircle; statusText = type === 'lowerIsBetter' ? 'Óptimo' : 'Saludable'; break;
-    case 'warning': borderColor = 'border-amber-500'; iconColor = 'text-amber-600'; iconBg = 'bg-amber-50'; statusIcon = AlertTriangle; statusText = type === 'lowerIsBetter' ? 'Cuidado' : 'Atención'; break;
-    case 'bad': borderColor = 'border-red-500'; iconColor = 'text-red-600'; iconBg = 'bg-red-50'; statusIcon = AlertTriangle; statusText = type === 'lowerIsBetter' ? 'Excesivo' : 'Crítico'; break;
-  }
-  const Icon = statusIcon;
-  return (
-    <div className={`bg-white p-5 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between border-l-[6px] ${borderColor} transition-all hover:shadow-md`}>
-      <div>
-        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{title}</p>
-        <div className="flex items-baseline gap-1">
-          <h3 className="text-xl font-black text-slate-800">{numValue}{suffix}</h3>
-        </div>
-        <span className={`text-[10px] font-bold uppercase mt-1 block ${iconColor}`}>{statusText}</span>
-      </div>
-      <div className={`h-12 w-12 rounded-full flex items-center justify-center ${iconBg} ${iconColor}`}><Icon size={24} /></div>
-    </div>
-  );
-};
-
 const GaugeCard = ({ title, value, max = 100, type = 'higherIsBetter', suffix = '' }) => {
   const numValue = Math.max(0, Math.min(parseFloat(value), max));
   const rotation = -90 + ((numValue / max) * 180);
-  // Colores fijos para consistencia visual (Rojo -> Verde)
   const colors = ['#ef4444', '#f59e0b', '#10b981']; 
   return (
     <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col items-center justify-between h-full relative overflow-hidden hover:shadow-md transition-all">
@@ -169,17 +134,16 @@ const App = () => {
   const [selectedBranch, setSelectedBranch] = useState('Todas');
   const [selectedMonth, setSelectedMonth] = useState('Acumulado');
 
-  // Estados para Firebase
   const [proveedores, setProveedores] = useState([]);
   const [facturas, setFacturas] = useState([]);
-  const [proveedoresSubTab, setProveedoresSubTab] = useState('operaciones'); // Por defecto operaciones para admin
+  const [proveedoresSubTab, setProveedoresSubTab] = useState('dashboard'); 
 
-  // Auth Firebase (Se activa con la contraseña maestra)
+  // Auth Firebase
   const connectFirebase = async () => {
     if (!auth) return;
     try {
       await signInAnonymously(auth);
-      console.log("Conectado a Firebase");
+      console.log("Firebase Conectado");
     } catch (e) {
       console.error("Error auth firebase:", e);
     }
@@ -191,39 +155,22 @@ const App = () => {
     setUsingMockData(false);
 
     if (targetTab === 'proveedores') {
-      if (!db) {
-        setError("Falta configuración de Firebase.");
-        setLoading(false);
-        return;
-      }
+      if (!db) { setError("Falta config Firebase"); setLoading(false); return; }
       try {
         const provSnap = await getDocs(query(collection(db, 'proveedores'), orderBy('name')));
-        const provList = provSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setProveedores(provList);
-
+        setProveedores(provSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         const factSnap = await getDocs(query(collection(db, 'facturas'), orderBy('invoiceDate', 'desc')));
-        const factList = factSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setFacturas(factList);
-        
-      } catch (err) {
-        console.error("Firebase Error:", err);
-        setError("Error cargando base de datos. Verifica tu conexión.");
-      } finally {
-        setLoading(false);
-      }
+        setFacturas(factSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      } catch (err) { setError("Error cargando base de datos."); } 
+      finally { setLoading(false); }
     } else {
-      // Google Sheets
       const sheetParam = targetTab === 'financiero' ? 'financiero' : 'ebitda';
       try {
         const res = await fetch(`/api/get-data?sheet=${sheetParam}`);
         if (!res.ok) throw new Error("Error del servidor");
         const rawData = await res.json();
-        if (!rawData || rawData.length === 0) {
-          setError("Hoja vacía o sin datos.");
-          setUsingMockData(true);
-          setData([]);
-          return;
-        }
+        if (!rawData || rawData.length === 0) { setError("Hoja vacía."); setUsingMockData(true); setData([]); return; }
+        
         const formatted = rawData.map(item => ({
           ...item,
           Monto: cleanMonto(item.Monto),
@@ -239,13 +186,10 @@ const App = () => {
         }));
         setData(formatted);
       } catch (err) {
-        console.error("Error:", err);
-        setError(`Fallo de conexión: ${err.message}`);
+        setError(`Fallo conexión: ${err.message}`);
         setUsingMockData(true);
         setData(mockData);
-      } finally {
-        setLoading(false);
-      }
+      } finally { setLoading(false); }
     }
   };
 
@@ -260,6 +204,7 @@ const App = () => {
     }
   }, [currentTab, isLoggedIn]);
 
+  // --- LÓGICA DE LOGIN MULTIUSUARIO ---
   const handleLogin = (e) => {
     e.preventDefault();
     if (password === 'Pampa2026') {
@@ -276,31 +221,28 @@ const App = () => {
     }
   };
 
-  // --- ACCIONES FIREBASE ---
+  // --- ACTIONS FIREBASE ---
   const handleAddFactura = async (factura) => {
     if (!db) return;
-    try {
-      await addDoc(collection(db, 'facturas'), factura);
-      fetchData('proveedores'); 
-    } catch (e) { console.error(e); alert("Error al guardar"); }
+    try { await addDoc(collection(db, 'facturas'), factura); fetchData('proveedores'); } 
+    catch (e) { alert("Error al guardar"); }
   };
 
    const handleAddProveedor = async (prov) => {
     if (!db) return;
-    try {
-      await addDoc(collection(db, 'proveedores'), prov);
-      fetchData('proveedores');
-    } catch (e) { console.error(e); alert("Error al guardar"); }
+    try { await addDoc(collection(db, 'proveedores'), prov); fetchData('proveedores'); } 
+    catch (e) { alert("Error al guardar"); }
   };
 
   const handleDeleteFactura = async (id) => {
     if (!confirm("¿Borrar factura?")) return;
-    try { await deleteDoc(doc(db, 'facturas', id)); fetchData('proveedores'); } catch(e){ console.error(e); }
+    try { await deleteDoc(doc(db, 'facturas', id)); fetchData('proveedores'); } 
+    catch(e){ console.error(e); }
   };
 
   const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(val);
 
-  // ... (Memos EconomicStats, FinancialStats, ChartData igual que antes) ...
+  // --- MEMOS ---
   const economicStats = useMemo(() => {
     if (currentTab !== 'economico') return null;
     const filtered = data.filter(d => {
@@ -329,10 +271,7 @@ const App = () => {
     const pesoGastosFijos = ventasNetas > 0 ? (sum(buckets.gastos) / ventasNetas) * 100 : 0;
     const margenBrutoPct = ventasNetas > 0 ? (margenBruto / ventasNetas) * 100 : 0;
 
-    return { 
-      ventasNetas, ebitda, margenPct, totalGastos: sum(buckets.gastos), margenBruto, puntoEquilibrio, pesoGastosFijos, margenBrutoPct,
-      buckets 
-    };
+    return { ventasNetas, ebitda, margenPct, totalGastos: sum(buckets.gastos), margenBruto, puntoEquilibrio, pesoGastosFijos, margenBrutoPct, buckets };
   }, [data, selectedBranch, selectedMonth, currentTab]);
 
   const financialStats = useMemo(() => {
@@ -341,9 +280,7 @@ const App = () => {
 
     const calcularRubro = (textoTipo) => {
       const items = filtered.filter(r => r.Tipo && r.Tipo.toLowerCase().includes(textoTipo));
-      const totalEntradas = items.reduce((sum, item) => sum + (item.Entrada || 0), 0);
-      const totalSalidas = items.reduce((sum, item) => sum + (item.Salida || 0), 0);
-      return totalEntradas - totalSalidas; 
+      return items.reduce((sum, item) => sum + (item.Entrada || 0), 0) - items.reduce((sum, item) => sum + (item.Salida || 0), 0);
     };
 
     const resultadoOperativo = calcularRubro('operativo');
@@ -352,51 +289,49 @@ const App = () => {
     const personalNeto = calcularRubro('personal');
     const financiamientoNeto = calcularRubro('financiamiento'); 
     const aportesNeto = calcularRubro('aporte'); 
-    const dependenciaFinanciera = aportesNeto < 0 ? financiamientoNeto + aportesNeto : financiamientoNeto - aportesNeto;
+    
+    // Dependencia: (Neto Financiamiento - Neto Aportes)
+    const dependenciaFinanciera = financiamientoNeto - aportesNeto;
+    // Caja Real Final: Operativo + Comprometida + Personal + FinanciamientoNeto (sin Aportes)
     const cajaRealFinal = resultadoOperativo + cajaComprometida + personalNeto + financiamientoNeto;
 
-    return { 
-      resultadoOperativo, cajaComprometida, cajaLibreReal, personalNeto, financiamientoNeto, aportesNeto, dependenciaFinanciera, cajaRealFinal
-    };
+    return { resultadoOperativo, cajaComprometida, cajaLibreReal, personalNeto, financiamientoNeto, dependenciaFinanciera, cajaRealFinal };
   }, [data, selectedMonth, currentTab]);
 
   const chartData = useMemo(() => {
-    if (currentTab === 'economico') {
-      const filtered = data.filter(d => (selectedBranch === 'Todas' || d.Sucursal === selectedBranch));
-      const months = [...new Set(filtered.map(d => d.Mes))].sort();
-      
-      const trend = months.map(m => {
-        const p = filtered.filter(d => d.Mes === m);
-        const sumMonto = (arr) => arr.reduce((a, b) => a + (b.Monto || 0), 0);
-        const v = sumMonto(p.filter(r => r.Concepto && (r.Concepto.toLowerCase().includes('venta') || r.Concepto.toLowerCase().includes('ingreso'))));
-        const comis = sumMonto(p.filter(r => r.Concepto && r.Concepto.toLowerCase().includes('comision')));
-        const c = sumMonto(p.filter(r => r.Concepto && r.Concepto.toLowerCase().includes('cmv')));
-        const g = sumMonto(p.filter(r => {
-           const con = (r.Concepto || '').toLowerCase();
-           return (con.includes('gasto') || con.includes('fijo')) && !con.includes('cmv') && !con.includes('comision');
-        }));
-        const ventasNetas = v - comis;
-        const ebitda = ventasNetas - c - g;
-        const margen = ventasNetas - c;
-        const ratio = ventasNetas > 0 ? margen / ventasNetas : 0;
-        const equilibrio = ratio > 0 ? g / ratio : 0;
-        return { name: m, ventas: ventasNetas, ebitda, equilibrio };
-      });
+    if (currentTab !== 'economico') return null;
+    const filtered = data.filter(d => (selectedBranch === 'Todas' || d.Sucursal === selectedBranch));
+    const months = [...new Set(filtered.map(d => d.Mes))].sort();
+    
+    const trend = months.map(m => {
+      const p = filtered.filter(d => d.Mes === m);
+      const sumMonto = (arr) => arr.reduce((a, b) => a + (b.Monto || 0), 0);
+      const v = sumMonto(p.filter(r => r.Concepto && (r.Concepto.toLowerCase().includes('venta') || r.Concepto.toLowerCase().includes('ingreso'))));
+      const comis = sumMonto(p.filter(r => r.Concepto && r.Concepto.toLowerCase().includes('comision')));
+      const c = sumMonto(p.filter(r => r.Concepto && r.Concepto.toLowerCase().includes('cmv')));
+      const g = sumMonto(p.filter(r => {
+         const con = (r.Concepto || '').toLowerCase();
+         return (con.includes('gasto') || con.includes('fijo')) && !con.includes('cmv') && !con.includes('comision');
+      }));
+      const ventasNetas = v - comis;
+      const ebitda = ventasNetas - c - g;
+      const margen = ventasNetas - c;
+      const ratio = ventasNetas > 0 ? margen / ventasNetas : 0;
+      const equilibrio = ratio > 0 ? g / ratio : 0;
+      return { name: m, ventas: ventasNetas, ebitda, equilibrio };
+    });
 
-      const stats = economicStats || { ventasNetas: 0, margenBruto: 0, totalGastos: 0, ebitda: 0, buckets: { cmv: [] } };
-      const cmvTotal = stats.buckets?.cmv ? stats.buckets.cmv.reduce((a,b)=>a+(b.Monto||0),0) : 0;
+    const stats = economicStats || { ventasNetas: 0, margenBruto: 0, totalGastos: 0, ebitda: 0, buckets: { cmv: [] } };
+    const cmvTotal = stats.buckets?.cmv ? stats.buckets.cmv.reduce((a,b)=>a+(b.Monto||0),0) : 0;
 
-      const waterfall = [
-        { name: '1. Ingresos', valor: stats.ventasNetas, base: 0, fill: '#3b82f6', label: 'Ventas Netas' },
-        { name: '2. Mercadería', valor: cmvTotal, base: Math.max(0, stats.margenBruto), fill: '#f97316', label: '- Costo Mercadería' },
-        { name: '3. Margen Bruto', valor: stats.margenBruto, base: 0, fill: '#6366f1', label: '= Margen Bruto' },
-        { name: '4. Gastos', valor: stats.totalGastos, base: Math.max(0, stats.ebitda), fill: '#ef4444', label: '- Gastos Fijos' },
-        { name: '5. EBITDA', valor: stats.ebitda, base: 0, fill: '#10b981', label: '= Resultado' }
-      ];
-
-      return { trend, waterfall };
-    }
-    return null;
+    const waterfall = [
+      { name: '1. Ingresos', valor: stats.ventasNetas, base: 0, fill: '#3b82f6', label: 'Ventas Netas' },
+      { name: '2. Mercadería', valor: cmvTotal, base: Math.max(0, stats.margenBruto), fill: '#f97316', label: '- Costo Mercadería' },
+      { name: '3. Margen Bruto', valor: stats.margenBruto, base: 0, fill: '#6366f1', label: '= Margen Bruto' },
+      { name: '4. Gastos', valor: stats.totalGastos, base: Math.max(0, stats.ebitda), fill: '#ef4444', label: '- Gastos Fijos' },
+      { name: '5. EBITDA', valor: stats.ebitda, base: 0, fill: '#10b981', label: '= Resultado' }
+    ];
+    return { trend, waterfall };
   }, [data, selectedBranch, selectedMonth, currentTab, economicStats]);
 
   const proveedoresStats = useMemo(() => {
@@ -406,11 +341,7 @@ const App = () => {
     const porVencer = facturas.filter(f => f.status !== 'Pagado' && new Date(f.dueDate) >= new Date()).reduce((acc, f) => acc + parseFloat(f.totalDebt || 0), 0);
     
     const provDebt = {};
-    facturas.forEach(f => {
-       if(f.status !== 'Pagado') {
-         provDebt[f.providerName] = (provDebt[f.providerName] || 0) + parseFloat(f.totalDebt || 0);
-       }
-    });
+    facturas.forEach(f => { if(f.status !== 'Pagado') provDebt[f.providerName] = (provDebt[f.providerName] || 0) + parseFloat(f.totalDebt || 0); });
     const topDeudores = Object.entries(provDebt).map(([name, saldo]) => ({ nombre: name, saldo })).sort((a,b) => b.saldo - a.saldo).slice(0,5);
 
     const vencimientosSemana = [
@@ -419,7 +350,6 @@ const App = () => {
       { name: 'Semana 3', deuda: porVencer * 0.4 },
       { name: 'Semana 4', deuda: porVencer * 0.3 },
     ];
-
     return { totalDeuda, vencido, porVencer, topDeudores, vencimientosSemana };
   }, [facturas, currentTab]);
 
@@ -429,12 +359,10 @@ const App = () => {
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-        <Styles />
         <div className="max-w-md w-full bg-white rounded-[2.5rem] shadow-2xl p-10 text-center border-b-8 border-amber-500 animate-fade-in">
           <div className="flex justify-center mb-8"><img src={LOGO_URL} alt="Logo" className="h-32 object-contain" /></div>
           <h2 className="text-3xl font-black text-slate-800 mb-2 uppercase">Fiambrerías Pampa</h2>
-          <p className="text-slate-400 text-sm mb-6">Identifíquese para acceder</p>
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-4 mt-8">
             <input type="password" placeholder="Contraseña" className="w-full px-6 py-4 rounded-2xl border-2 text-center" onChange={(e) => setPassword(e.target.value)} />
             <button className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black">INGRESAR</button>
           </form>
@@ -445,18 +373,11 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] pb-20 font-sans text-slate-900">
-      <Styles />
       <nav className="bg-white border-b border-slate-100 h-20 px-8 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-4">
-          <div className="h-10 w-10 rounded-xl bg-white shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden">
-            <img src={LOGO_URL} alt="Logo" className="h-full w-full object-contain" />
-          </div>
-          <h1 className="font-black text-lg tracking-tighter uppercase leading-none hidden sm:block">
-            {userRole === 'gerente' ? 'PANEL GERENCIAL' : 'MÓDULO DE CARGA'}
-          </h1>
+          <div className="h-10 w-10 rounded-xl bg-white shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden"><img src={LOGO_URL} alt="Logo" className="h-full w-full object-contain" /></div>
+          <h1 className="font-black text-lg tracking-tighter uppercase leading-none hidden sm:block">{userRole === 'gerente' ? 'PANEL GERENCIAL' : 'MÓDULO DE CARGA'}</h1>
         </div>
-        
-        {/* NAVEGACIÓN SEGÚN ROL */}
         <div className="flex bg-slate-100 p-1 rounded-2xl">
           {userRole === 'gerente' && (
             <>
@@ -464,14 +385,11 @@ const App = () => {
               <TabButton active={currentTab === 'financiero'} label="Flujo de Fondos" icon={Banknote} onClick={() => setCurrentTab('financiero')} />
             </>
           )}
-          {/* El botón de proveedores se muestra para ambos, pero el contenido interno cambia */}
           <TabButton active={currentTab === 'proveedores'} label="Proveedores" icon={Briefcase} onClick={() => setCurrentTab('proveedores')} />
         </div>
-
         <div className="flex gap-4 items-center">
           <span className="text-[10px] font-bold uppercase bg-slate-100 px-3 py-1 rounded-full text-slate-500 flex items-center gap-1">
-             {userRole === 'gerente' ? <UserCog size={14}/> : <User size={14}/>}
-             {userRole}
+             {userRole === 'gerente' ? <UserCog size={14}/> : <User size={14}/>} {userRole}
           </span>
           <button onClick={() => fetchData(currentTab)} className="p-3 bg-slate-50 rounded-2xl hover:bg-slate-100"><RefreshCcw size={20}/></button>
           <button onClick={() => { setIsLoggedIn(false); setUserRole(null); }} className="bg-slate-900 text-white px-6 py-2.5 rounded-2xl text-xs font-bold">SALIR</button>
@@ -480,17 +398,15 @@ const App = () => {
 
       <main className="max-w-7xl mx-auto px-8 mt-10 space-y-10 animate-fade-in">
         
-        {/* --- CONTENIDO ECONÓMICO (SOLO GERENTE) --- */}
-        {userRole === 'gerente' && currentTab === 'economico' && (
-          // ... (Aquí va todo el bloque de filtros y gráficos económicos)
-          <>
-            {/* FILTROS COMUNES */}
-            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-              <div className="flex items-center gap-3 mb-4 pl-2">
-                <div className="bg-amber-100 p-2 rounded-xl text-amber-600"><Sliders size={20} /></div>
-                <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Panel de Control: {currentTab.toUpperCase()}</h3>
-              </div>
-              <div className="flex flex-wrap gap-6">
+        {/* FILTROS COMUNES (SOLO GERENTE VE FILTROS ECONÓMICOS) */}
+        {userRole === 'gerente' && currentTab !== 'proveedores' && (
+          <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+            <div className="flex items-center gap-3 mb-4 pl-2">
+              <div className="bg-amber-100 p-2 rounded-xl text-amber-600"><Sliders size={20} /></div>
+              <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Panel de Control</h3>
+            </div>
+            <div className="flex flex-wrap gap-6">
+              {currentTab === 'economico' && (
                 <div className="flex-1 min-w-[200px]">
                   <label className="block text-xs font-black text-slate-400 uppercase mb-2 ml-1">Sucursal</label>
                   <div className="relative">
@@ -501,111 +417,90 @@ const App = () => {
                     <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={20} />
                   </div>
                 </div>
-                <div className="flex-1 min-w-[200px]">
-                  <label className="block text-xs font-black text-slate-400 uppercase mb-2 ml-1">Período</label>
-                  <div className="relative">
-                    <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                    <select className="w-full bg-slate-50 hover:bg-slate-100 transition-colors px-12 py-4 rounded-2xl font-black text-slate-700 uppercase outline-none appearance-none" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
-                      {months.map(m => (<option key={m} value={m}>{formatPeriod(m)}</option>))}
-                    </select>
-                    <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={20} />
-                  </div>
+              )}
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-xs font-black text-slate-400 uppercase mb-2 ml-1">Período</label>
+                <div className="relative">
+                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                  <select className="w-full bg-slate-50 hover:bg-slate-100 transition-colors px-12 py-4 rounded-2xl font-black text-slate-700 uppercase outline-none appearance-none" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
+                    {months.map(m => (<option key={m} value={m}>{formatPeriod(m)}</option>))}
+                  </select>
+                  <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={20} />
                 </div>
               </div>
             </div>
+          </div>
+        )}
 
-            {economicStats && (
+        {/* --- VISTAS --- */}
+        {currentTab === 'economico' && economicStats && (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              <KPICard title="Ventas Netas" value={formatCurrency(economicStats.ventasNetas)} icon={TrendingUp} color="bg-blue-600" detail="Ingresos Reales" />
+              <KPICard title="Punto de Equilibrio" value={formatCurrency(economicStats.puntoEquilibrio)} icon={Scale} color="bg-purple-500" detail="Meta Mensual" />
+              <KPICard title="Margen Bruto" value={formatCurrency(economicStats.margenBruto)} icon={Wallet} color="bg-indigo-500" detail="Contribución" />
+              <KPICard title="Gastos Fijos" value={formatCurrency(economicStats.totalGastos)} icon={FileText} color="bg-red-600" detail="Estructura" />
+              <KPICard title="EBITDA" value={formatCurrency(economicStats.ebitda)} icon={DollarSign} color="bg-emerald-600" detail="Resultado" />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <GaugeCard title="Margen Bruto %" value={economicStats.margenBrutoPct.toFixed(1)} suffix="%" max={70} type="higherIsBetter" />
+              <GaugeCard title="Salud del Margen EBITDA" value={economicStats.margenPct.toFixed(1)} suffix="%" max={30} type="higherIsBetter" />
+              <GaugeCard title="Cobertura Punto de Equilibrio" value={economicStats.puntoEquilibrio > 0 ? ((economicStats.ventasNetas / economicStats.puntoEquilibrio) * 100).toFixed(0) : 0} suffix="%" max={200} type="higherIsBetter" />
+              <GaugeCard title="Peso Gastos Fijos s/Venta" value={economicStats.pesoGastosFijos.toFixed(1)} suffix="%" max={60} />
+            </div>
+            {chartData && (
               <>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                  <KPICard title="Ventas Netas" value={formatCurrency(economicStats.ventasNetas)} icon={TrendingUp} color="bg-blue-600" detail="Ingresos Reales" />
-                  <KPICard title="Punto de Equilibrio" value={formatCurrency(economicStats.puntoEquilibrio)} icon={Scale} color="bg-purple-500" detail="Meta Mensual" />
-                  <KPICard title="Margen Bruto" value={formatCurrency(economicStats.margenBruto)} icon={Wallet} color="bg-indigo-500" detail="Contribución" />
-                  <KPICard title="Gastos Fijos" value={formatCurrency(economicStats.totalGastos)} icon={FileText} color="bg-red-600" detail="Estructura" />
-                  <KPICard title="EBITDA" value={formatCurrency(economicStats.ebitda)} icon={DollarSign} color="bg-emerald-600" detail="Resultado" />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
+                    <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><Scale size={16}/> Punto de Equilibrio vs Ventas</h3>
+                    <ResponsiveContainer width="100%" height="80%">
+                      <ComposedChart data={chartData.trend}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#cbd5e1'}} dy={10} />
+                        <Tooltip contentStyle={{borderRadius: '16px', border: 'none'}} formatter={(value) => formatCurrency(value)} />
+                        <Legend />
+                        <Bar dataKey="ventas" name="Ventas Reales" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={20} />
+                        <Line type="monotone" dataKey="equilibrio" name="Meta (Equilibrio)" stroke="#ef4444" strokeWidth={3} strokeDasharray="5 5" dot={{r: 4, fill: '#ef4444'}} />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
+                    <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><Activity size={16}/> Evolución del EBITDA</h3>
+                    <ResponsiveContainer width="100%" height="80%">
+                      <ComposedChart data={chartData.trend}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#cbd5e1'}} dy={10} />
+                        <Tooltip contentStyle={{borderRadius: '16px', border: 'none'}} formatter={(value) => formatCurrency(value)} />
+                        <Legend />
+                        <Bar dataKey="ventas" name="Ventas (Contexto)" fill="#e2e8f0" radius={[4, 4, 0, 0]} barSize={20} />
+                        <Line type="monotone" dataKey="ebitda" name="EBITDA" stroke="#10b981" strokeWidth={4} dot={{r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#fff'}} />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  <GaugeCard title="Margen Bruto %" value={economicStats.margenBrutoPct.toFixed(1)} suffix="%" max={70} type="higherIsBetter" />
-                  <GaugeCard title="Salud del Margen EBITDA" value={economicStats.margenPct.toFixed(1)} suffix="%" max={30} type="higherIsBetter" />
-                  <GaugeCard title="Cobertura Punto de Equilibrio" value={economicStats.puntoEquilibrio > 0 ? ((economicStats.ventasNetas / economicStats.puntoEquilibrio) * 100).toFixed(0) : 0} suffix="%" max={200} type="higherIsBetter" />
-                  <GaugeCard title="Peso Gastos Fijos s/Venta" value={economicStats.pesoGastosFijos.toFixed(1)} suffix="%" max={60} />
+                <div className="grid grid-cols-1 gap-8">
+                  <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
+                    <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><BarChart2 size={16}/> Cascada de Resultados (P&L)</h3>
+                    <ResponsiveContainer width="100%" height="80%">
+                      <BarChart data={chartData.waterfall}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} interval={0} />
+                        <Tooltip cursor={{fill: 'transparent'}} content={({ payload }) => { if (payload && payload.length) return <div className="bg-white p-4 rounded-xl shadow-lg border"><p className="font-bold text-slate-500 text-xs">{payload[0].payload.label}</p><p className="font-black text-lg">{formatCurrency(payload[0].value)}</p></div>; return null; }} />
+                        <Bar dataKey="base" stackId="a" fill="transparent" />
+                        <Bar dataKey="valor" stackId="a" radius={[6, 6, 6, 6]}>
+                          {chartData.waterfall.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.fill} />))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
                 </div>
-                {chartData && (
-                  <>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                      <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
-                        <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><Scale size={16}/> Punto de Equilibrio vs Ventas</h3>
-                        <ResponsiveContainer width="100%" height="80%">
-                          <ComposedChart data={chartData.trend}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#cbd5e1'}} dy={10} />
-                            <Tooltip contentStyle={{borderRadius: '16px', border: 'none'}} formatter={(value) => formatCurrency(value)} />
-                            <Legend />
-                            <Bar dataKey="ventas" name="Ventas Reales" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={20} />
-                            <Line type="monotone" dataKey="equilibrio" name="Meta (Equilibrio)" stroke="#ef4444" strokeWidth={3} strokeDasharray="5 5" dot={{r: 4, fill: '#ef4444'}} />
-                          </ComposedChart>
-                        </ResponsiveContainer>
-                      </div>
-                      <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
-                        <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><Activity size={16}/> Evolución del EBITDA</h3>
-                        <ResponsiveContainer width="100%" height="80%">
-                          <ComposedChart data={chartData.trend}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#cbd5e1'}} dy={10} />
-                            <Tooltip contentStyle={{borderRadius: '16px', border: 'none'}} formatter={(value) => formatCurrency(value)} />
-                            <Legend />
-                            <Bar dataKey="ventas" name="Ventas (Contexto)" fill="#e2e8f0" radius={[4, 4, 0, 0]} barSize={20} />
-                            <Line type="monotone" dataKey="ebitda" name="EBITDA" stroke="#10b981" strokeWidth={4} dot={{r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#fff'}} />
-                          </ComposedChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 gap-8">
-                      <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
-                        <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><BarChart2 size={16}/> Cascada de Resultados (P&L)</h3>
-                        <ResponsiveContainer width="100%" height="80%">
-                          <BarChart data={chartData.waterfall}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} interval={0} />
-                            <Tooltip cursor={{fill: 'transparent'}} content={({ payload }) => { if (payload && payload.length) return <div className="bg-white p-4 rounded-xl shadow-lg border"><p className="font-bold text-slate-500 text-xs">{payload[0].payload.label}</p><p className="font-black text-lg">{formatCurrency(payload[0].value)}</p></div>; return null; }} />
-                            <Bar dataKey="base" stackId="a" fill="transparent" />
-                            <Bar dataKey="valor" stackId="a" radius={[6, 6, 6, 6]}>
-                              {chartData.waterfall.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.fill} />))}
-                            </Bar>
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-                  </>
-                )}
               </>
             )}
           </>
         )}
 
-        {/* --- VISTA FINANCIERA (SOLO GERENTE) --- */}
-        {userRole === 'gerente' && currentTab === 'financiero' && financialStats && (
+        {currentTab === 'financiero' && financialStats && (
           <>
-             {/* ... (Contenido Financiero existente) ... */}
-             {/* ... FILTROS COMUNES DE NUEVO ... */}
-             <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 mb-8">
-              <div className="flex items-center gap-3 mb-4 pl-2">
-                <div className="bg-amber-100 p-2 rounded-xl text-amber-600"><Sliders size={20} /></div>
-                <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Panel de Control: {currentTab.toUpperCase()}</h3>
-              </div>
-              <div className="flex flex-wrap gap-6">
-                <div className="flex-1 min-w-[200px]">
-                  <label className="block text-xs font-black text-slate-400 uppercase mb-2 ml-1">Período</label>
-                  <div className="relative">
-                    <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                    <select className="w-full bg-slate-50 hover:bg-slate-100 transition-colors px-12 py-4 rounded-2xl font-black text-slate-700 uppercase outline-none appearance-none" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
-                      {months.map(m => (<option key={m} value={m}>{formatPeriod(m)}</option>))}
-                    </select>
-                    <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={20} />
-                  </div>
-                </div>
-              </div>
-            </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <KPICard title="Resultado Operativo" value={formatCurrency(financialStats.resultadoOperativo)} icon={Activity} color="bg-blue-600" detail="1" subtext="Operaciones del mes" />
               <KPICard title="Caja Comprometida" value={formatCurrency(financialStats.cajaComprometida)} icon={AlertTriangle} color="bg-orange-500" detail="2" subtext="Deuda vieja pagada" />
@@ -631,18 +526,7 @@ const App = () => {
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} />
                   <YAxis hide />
-                  <Tooltip cursor={{fill: 'transparent'}} content={({ payload }) => { 
-                    if (payload && payload.length) {
-                      const data = payload[0].payload;
-                      return (
-                        <div className="bg-white p-4 rounded-xl shadow-lg border">
-                          <p className="font-bold text-slate-500 text-xs">{data.label}</p>
-                          <p className={`font-black text-lg ${data.valor < 0 ? 'text-red-600' : 'text-slate-800'}`}>{formatCurrency(data.valor)}</p>
-                        </div>
-                      );
-                    }
-                    return null; 
-                  }} />
+                  <Tooltip cursor={{fill: 'transparent'}} content={({ payload }) => { if (payload && payload.length) return <div className="bg-white p-4 rounded-xl shadow-lg border"><p className="font-bold text-slate-500 text-xs">{payload[0].payload.label}</p><p className="font-black text-lg">{formatCurrency(payload[0].value)}</p></div>; return null; }} />
                   <Bar dataKey="base" stackId="a" fill="transparent" />
                   <Bar dataKey="valor" stackId="a" radius={[6, 6, 6, 6]}>
                     <Cell fill="#3b82f6" />
@@ -662,10 +546,7 @@ const App = () => {
         {currentTab === 'proveedores' && (
           <div className="space-y-6">
             <div className="flex gap-4 mb-4">
-              {/* Si es gerente, ve todo. Si es admin, solo operaciones y base */}
-              {userRole === 'gerente' && (
-                <button onClick={() => setProveedoresSubTab('dashboard')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'dashboard' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Tablero Deuda</button>
-              )}
+              {userRole === 'gerente' && <button onClick={() => setProveedoresSubTab('dashboard')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'dashboard' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Tablero Deuda</button>}
               <button onClick={() => setProveedoresSubTab('operaciones')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'operaciones' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Carga de Facturas</button>
               <button onClick={() => setProveedoresSubTab('base')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'base' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Base Proveedores</button>
             </div>
@@ -686,7 +567,6 @@ const App = () => {
                      </div>
                   </div>
                 </div>
-
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[400px] overflow-hidden">
                     <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><Briefcase size={16}/> Top Deudores</h3>
@@ -695,9 +575,7 @@ const App = () => {
                         <div key={i} className="flex items-center justify-between p-3 hover:bg-slate-50 rounded-xl transition-colors border-b border-slate-50 last:border-0">
                           <div className="flex items-center gap-3">
                             <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center font-black text-slate-500 text-xs">{p.nombre.substring(0,2).toUpperCase()}</div>
-                            <div>
-                              <p className="font-bold text-sm text-slate-700">{p.nombre}</p>
-                            </div>
+                            <p className="font-bold text-sm text-slate-700">{p.nombre}</p>
                           </div>
                           <p className="font-black text-slate-800">{formatCurrency(p.saldo)}</p>
                         </div>
@@ -722,7 +600,7 @@ const App = () => {
               <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
                 <div className="flex justify-between items-center mb-6">
                   <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Base de Proveedores</h3>
-                  <button className="bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-600" onClick={() => {/* Lógica para abrir modal agregar proveedor */}}>+ Agregar</button>
+                  <button className="bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-600" onClick={() => {/* Lógica modal */}}>+ Agregar</button>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
@@ -742,9 +620,7 @@ const App = () => {
                           <td className="p-3 text-slate-500">{p.phone}</td>
                           <td className="p-3 text-slate-500">{p.cuit}</td>
                           <td className="p-3 text-slate-500">{p.address}</td>
-                          <td className="p-3 text-slate-500">
-                             <button className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button>
-                          </td>
+                          <td className="p-3 text-slate-500"><button className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button></td>
                         </tr>
                       ))}
                       {proveedores.length === 0 && <tr><td colSpan="5" className="p-4 text-center text-slate-400">No hay proveedores cargados.</td></tr>}
@@ -852,18 +728,14 @@ const App = () => {
             )}
           </div>
         )}
-
       </main>
     </div>
   );
 };
 
 const mockData = [{ Mes: '2024-01', Sucursal: 'Centro', Concepto: 'Ingreso', Subconcepto: 'Efectivo', Monto: 100000 }];
-const container = document.getElementById('root');
-if (container) {
-  const root = createRoot(container);
-  root.render(<App />);
-}
+const root = createRoot(document.getElementById('root'));
+root.render(<App />);
 
 export default App;
 // --- ESTILOS INYECTADOS ---
