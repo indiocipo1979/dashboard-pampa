@@ -13,8 +13,8 @@ import { getAuth, signInAnonymously } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, updateDoc, doc, query, orderBy } from 'firebase/firestore';
 
 /**
- * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v6.8
- * Mejoras: Loader Global de Carga + Fix Tooltip Cascada + Feedback en Botones
+ * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v6.9
+ * Mejoras: Etiquetas explícitas en formulario de carga de facturas.
  */
 
 // --- CONFIGURACIÓN FIREBASE OFUSCADA ---
@@ -608,8 +608,8 @@ const App = () => {
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} />
                   <YAxis hide />
-                  <Tooltip cursor={{fill: 'transparent'}} content={({ active, payload }) => { 
-                    if (active && payload && payload.length) {
+                  <Tooltip cursor={{fill: 'transparent'}} content={({ payload }) => { 
+                    if (payload && payload.length) {
                       const data = payload[0].payload;
                       return (
                         <div className="bg-white p-4 rounded-xl shadow-lg border">
@@ -851,19 +851,43 @@ const App = () => {
                     });
                     e.target.reset();
                   }} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                     <select name="providerId" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" required>
-                        <option value="">Seleccionar Proveedor...</option>
-                        {proveedores.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                     </select>
-                     <input name="invoiceNumber" placeholder="Nro Factura" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" required />
-                     <input name="invoiceDate" type="date" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" required />
-                     <input name="dueDate" type="date" placeholder="Vencimiento" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" required />
+                     <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">Proveedor</label>
+                        <select name="providerId" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 w-full" required>
+                            <option value="">Seleccionar...</option>
+                            {proveedores.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                     </div>
+                     <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">Nro Factura</label>
+                        <input name="invoiceNumber" placeholder="Nro Factura" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 w-full" required />
+                     </div>
+                     <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">Fecha Factura</label>
+                        <input name="invoiceDate" type="date" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 w-full" required />
+                     </div>
+                     <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">Fecha Vencimiento</label>
+                        <input name="dueDate" type="date" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 w-full" required />
+                     </div>
                      
-                     <input name="netAmount" type="number" step="0.01" placeholder="Monto Neto" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" required />
-                     <input name="taxes" type="number" step="0.01" placeholder="Impuestos" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" required />
-                     <input name="initialPayment" type="number" step="0.01" placeholder="Pago / Entrega Inicial" className="bg-emerald-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-600 font-bold text-emerald-700" />
+                     <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">Monto Neto</label>
+                        <input name="netAmount" type="number" step="0.01" placeholder="$ 0.00" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 w-full" required />
+                     </div>
+                     <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">Impuestos</label>
+                        <input name="taxes" type="number" step="0.01" placeholder="$ 0.00" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 w-full" required />
+                     </div>
+                     <div className="flex flex-col gap-1 md:col-span-2">
+                        <label className="text-[10px] font-bold text-emerald-600 uppercase ml-2">Pago / Entrega Inicial</label>
+                        <input name="initialPayment" type="number" step="0.01" placeholder="$ 0.00" className="bg-emerald-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-600 font-bold text-emerald-700 w-full" />
+                     </div>
                      
-                     <input name="description" placeholder="Descripción / Detalle" className="md:col-span-4 bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" />
+                     <div className="flex flex-col gap-1 md:col-span-4">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">Descripción / Detalle</label>
+                        <input name="description" placeholder="Opcional..." className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 w-full" />
+                     </div>
                      <button type="submit" disabled={savingFactura} className="md:col-span-4 bg-slate-800 text-white p-3 rounded-xl text-xs font-bold hover:bg-slate-700 flex justify-center items-center gap-2 disabled:opacity-50">
                         {savingFactura ? <Loader className="animate-spin" size={16} /> : <Save size={16} />}
                         {savingFactura ? 'Guardando...' : 'Guardar Factura'}
