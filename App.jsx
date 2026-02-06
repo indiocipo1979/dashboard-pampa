@@ -13,8 +13,8 @@ import { getAuth, signInAnonymously } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, updateDoc, doc, query, orderBy } from 'firebase/firestore';
 
 /**
- * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v5.4
- * Mejora: Gestión de Proveedores (Alta, Baja y Modificación con Modal)
+ * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v6.0 (GOLDEN COPY)
+ * Incluye: Login Multiusuario + Validación Proveedores + Conexión Vercel
  */
 
 // --- CONFIGURACIÓN FIREBASE OFUSCADA ---
@@ -124,6 +124,7 @@ const TabButton = ({ active, label, icon: Icon, onClick }) => (
 const App = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [password, setPassword] = useState('');
+  const [userRole, setUserRole] = useState(null); // 'gerente' | 'admin'
   const [currentTab, setCurrentTab] = useState('economico');
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState([]);
@@ -178,7 +179,7 @@ const App = () => {
         setLoading(false);
       }
     } else {
-      // Google Sheets
+      // Google Sheets (Vía API Vercel)
       const sheetParam = targetTab === 'financiero' ? 'financiero' : 'ebitda';
       try {
         const res = await fetch(`/api/get-data?sheet=${sheetParam}`);
@@ -230,9 +231,11 @@ const App = () => {
     e.preventDefault();
     const passInput = password.trim();
     if (passInput === 'Pampa2026') {
+      setUserRole('gerente');
       setIsLoggedIn(true);
       setCurrentTab('economico');
     } else if (passInput === 'PampaCarga') {
+      setUserRole('admin');
       setIsLoggedIn(true);
       setCurrentTab('proveedores');
       setProveedoresSubTab('operaciones');
@@ -246,19 +249,31 @@ const App = () => {
     e.preventDefault();
     if (!db) return;
     const formData = new FormData(e.target);
-    const newProv = {
-      name: formData.get('name'),
-      phone: formData.get('phone'),
-      cuit: formData.get('cuit'),
-      address: formData.get('address'),
-    };
+    const name = formData.get('name').trim();
+    const phone = formData.get('phone').trim();
+    const cuit = formData.get('cuit').trim();
+    const address = formData.get('address').trim();
+
+    // 1. Validación de Duplicados
+    const isDuplicate = proveedores.some(p => {
+      if (editingProv && p.id === editingProv.id) return false; // Ignorar si es el mismo que editamos
+      const sameName = p.name.toLowerCase() === name.toLowerCase();
+      const sameCuit = cuit && p.cuit && p.cuit === cuit;
+      return sameName || sameCuit;
+    });
+
+    if (isDuplicate) {
+      alert(`⚠️ ERROR: Ya existe un proveedor con ese Nombre ("${name}") o CUIT.`);
+      return; 
+    }
+
+    // 2. Guardado
+    const newProv = { name, phone, cuit, address };
 
     try {
       if (editingProv) {
-        // Editar
         await updateDoc(doc(db, 'proveedores', editingProv.id), newProv);
       } else {
-        // Crear nuevo
         await addDoc(collection(db, 'proveedores'), newProv);
       }
       setShowProvModal(false);
@@ -266,7 +281,7 @@ const App = () => {
       fetchData('proveedores');
     } catch (err) {
       console.error(err);
-      alert("Error al guardar proveedor");
+      alert("Error al guardar proveedor en base de datos.");
     }
   };
 
@@ -445,29 +460,33 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] pb-20 font-sans text-slate-900">
-      <Styles />
       <nav className="bg-white border-b border-slate-100 h-20 px-8 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-4">
-          <div className="h-10 w-10 rounded-xl bg-white shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden">
-            <img src={LOGO_URL} alt="Logo" className="h-full w-full object-contain" />
-          </div>
-          <h1 className="font-black text-lg tracking-tighter uppercase leading-none hidden sm:block">FIAMBRERIAS PAMPA</h1>
+          <div className="h-10 w-10 rounded-xl bg-white shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden"><img src={LOGO_URL} alt="Logo" className="h-full w-full object-contain" /></div>
+          <h1 className="font-black text-lg tracking-tighter uppercase leading-none hidden sm:block">{userRole === 'gerente' ? 'PANEL GERENCIAL' : 'MÓDULO DE CARGA'}</h1>
         </div>
         <div className="flex bg-slate-100 p-1 rounded-2xl">
-          <TabButton active={currentTab === 'economico'} label="Económico" icon={BarChart2} onClick={() => setCurrentTab('economico')} />
-          <TabButton active={currentTab === 'financiero'} label="Flujo de Fondos" icon={Banknote} onClick={() => setCurrentTab('financiero')} />
+          {userRole === 'gerente' && (
+            <>
+              <TabButton active={currentTab === 'economico'} label="Económico" icon={BarChart2} onClick={() => setCurrentTab('economico')} />
+              <TabButton active={currentTab === 'financiero'} label="Flujo de Fondos" icon={Banknote} onClick={() => setCurrentTab('financiero')} />
+            </>
+          )}
           <TabButton active={currentTab === 'proveedores'} label="Proveedores" icon={Briefcase} onClick={() => setCurrentTab('proveedores')} />
         </div>
-        <div className="flex gap-4">
+        <div className="flex gap-4 items-center">
+          <span className="text-[10px] font-bold uppercase bg-slate-100 px-3 py-1 rounded-full text-slate-500 flex items-center gap-1">
+             {userRole === 'gerente' ? <UserCog size={14}/> : <User size={14}/>} {userRole}
+          </span>
           <button onClick={() => fetchData(currentTab)} className="p-3 bg-slate-50 rounded-2xl hover:bg-slate-100"><RefreshCcw size={20}/></button>
-          <button onClick={() => setIsLoggedIn(false)} className="bg-slate-900 text-white px-6 py-2.5 rounded-2xl text-xs font-bold">SALIR</button>
+          <button onClick={() => { setIsLoggedIn(false); setUserRole(null); }} className="bg-slate-900 text-white px-6 py-2.5 rounded-2xl text-xs font-bold">SALIR</button>
         </div>
       </nav>
 
       <main className="max-w-7xl mx-auto px-8 mt-10 space-y-10 animate-fade-in">
         
-        {/* --- FILTROS --- */}
-        {currentTab !== 'proveedores' && (
+        {/* FILTROS COMUNES (SOLO GERENTE VE FILTROS ECONÓMICOS) */}
+        {userRole === 'gerente' && currentTab !== 'proveedores' && (
           <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
             <div className="flex items-center gap-3 mb-4 pl-2">
               <div className="bg-amber-100 p-2 rounded-xl text-amber-600"><Sliders size={20} /></div>
@@ -626,12 +645,12 @@ const App = () => {
         {currentTab === 'proveedores' && (
           <div className="space-y-6">
             <div className="flex gap-4 mb-4">
-              <button onClick={() => setProveedoresSubTab('dashboard')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'dashboard' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Tablero</button>
-              <button onClick={() => setProveedoresSubTab('operaciones')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'operaciones' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Operaciones</button>
+              {userRole === 'gerente' && <button onClick={() => setProveedoresSubTab('dashboard')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'dashboard' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Tablero Deuda</button>}
+              <button onClick={() => setProveedoresSubTab('operaciones')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'operaciones' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Carga de Facturas</button>
               <button onClick={() => setProveedoresSubTab('base')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'base' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Base Proveedores</button>
             </div>
 
-            {proveedoresSubTab === 'dashboard' && proveedoresStats && (
+            {userRole === 'gerente' && proveedoresSubTab === 'dashboard' && proveedoresStats && (
               <>
                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                   <KPICard title="Deuda Total" value={formatCurrency(proveedoresStats.totalDeuda)} icon={Wallet} color="bg-slate-800" detail="Total a Pagar" subtext="Saldo pendiente global" />
@@ -647,6 +666,7 @@ const App = () => {
                      </div>
                   </div>
                 </div>
+
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[400px] overflow-hidden">
                     <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><Briefcase size={16}/> Top Deudores</h3>
@@ -825,11 +845,8 @@ const App = () => {
 };
 
 const mockData = [{ Mes: '2024-01', Sucursal: 'Centro', Concepto: 'Ingreso', Subconcepto: 'Efectivo', Monto: 100000 }];
-const container = document.getElementById('root');
-if (container) {
-  const root = createRoot(container);
-  root.render(<App />);
-}
+const root = createRoot(document.getElementById('root'));
+root.render(<App />);
 
 export default App;
 // --- ESTILOS INYECTADOS ---
