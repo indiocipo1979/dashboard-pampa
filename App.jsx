@@ -13,8 +13,8 @@ import { getAuth, signInAnonymously } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, updateDoc, doc, query, orderBy } from 'firebase/firestore';
 
 /**
- * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v6.3
- * Feature: Gestión de Pagos Parciales (Total vs Saldo)
+ * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v6.5
+ * Versión Optimizada: Todas las funciones + Estilos corregidos + Lógica unificada.
  */
 
 // --- CONFIGURACIÓN FIREBASE OFUSCADA ---
@@ -139,24 +139,17 @@ const App = () => {
   const [facturas, setFacturas] = useState([]);
   const [proveedoresSubTab, setProveedoresSubTab] = useState('dashboard'); 
   
-  // Estado para Modales
+  // Modales
   const [showProvModal, setShowProvModal] = useState(false);
   const [editingProv, setEditingProv] = useState(null);
   const [savingProv, setSavingProv] = useState(false);
-  
-  // Nuevo Estado para Importación Masiva
   const [showImportModal, setShowImportModal] = useState(false);
   const [importText, setImportText] = useState('');
 
-  // Auth Firebase
   const connectFirebase = async () => {
     if (!auth) return;
-    try {
-      await signInAnonymously(auth);
-      console.log("Firebase Conectado");
-    } catch (e) {
-      console.error("Error auth firebase:", e);
-    }
+    try { await signInAnonymously(auth); console.log("Firebase Conectado"); } 
+    catch (e) { console.error("Error auth:", e); }
   };
 
   const fetchData = async (targetTab) => {
@@ -165,37 +158,20 @@ const App = () => {
     setUsingMockData(false);
 
     if (targetTab === 'proveedores') {
-      if (!db) {
-        setError("Falta configuración de Firebase.");
-        setLoading(false);
-        return;
-      }
+      if (!db) { setError("Falta config Firebase"); setLoading(false); return; }
       try {
         const provSnap = await getDocs(query(collection(db, 'proveedores'), orderBy('name')));
         setProveedores(provSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-
         const factSnap = await getDocs(query(collection(db, 'facturas'), orderBy('invoiceDate', 'desc')));
         setFacturas(factSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        
-      } catch (err) {
-        console.error("Firebase Error:", err);
-        setError("Error cargando base de datos. Verifica tu conexión.");
-      } finally {
-        setLoading(false);
-      }
+      } catch (err) { setError("Error Firebase"); } finally { setLoading(false); }
     } else {
-      // Google Sheets
       const sheetParam = targetTab === 'financiero' ? 'financiero' : 'ebitda';
       try {
         const res = await fetch(`/api/get-data?sheet=${sheetParam}`);
         if (!res.ok) throw new Error("Error del servidor");
         const rawData = await res.json();
-        if (!rawData || rawData.length === 0) {
-          setError("Hoja vacía o sin datos.");
-          setUsingMockData(true);
-          setData([]);
-          return;
-        }
+        if (!rawData || rawData.length === 0) { setError("Hoja vacía."); setUsingMockData(true); setData([]); return; }
         const formatted = rawData.map(item => ({
           ...item,
           Monto: cleanMonto(item.Monto),
@@ -210,14 +186,7 @@ const App = () => {
           Origen: String(item.Origen || '').trim()
         }));
         setData(formatted);
-      } catch (err) {
-        console.error("Error:", err);
-        setError(`Fallo de conexión: ${err.message}`);
-        setUsingMockData(true);
-        setData(mockData);
-      } finally {
-        setLoading(false);
-      }
+      } catch (err) { setError(`Fallo conexión: ${err.message}`); setUsingMockData(true); setData(mockData); } finally { setLoading(false); }
     }
   };
 
@@ -225,43 +194,29 @@ const App = () => {
     if (isLoggedIn) {
       if (currentTab === 'proveedores') connectFirebase();
       fetchData(currentTab);
-      if (currentTab !== 'proveedores') {
-        setSelectedBranch('Todas');
-        setSelectedMonth('Acumulado');
-      }
+      if (currentTab !== 'proveedores') { setSelectedBranch('Todas'); setSelectedMonth('Acumulado'); }
     }
   }, [currentTab, isLoggedIn]);
 
   const handleLogin = (e) => {
     e.preventDefault();
     const passInput = password.trim();
-    if (passInput === 'Pampa2026') {
-      setUserRole('gerente');
-      setIsLoggedIn(true);
-      setCurrentTab('economico');
-    } else if (passInput === 'PampaCarga') {
-      setUserRole('admin');
-      setIsLoggedIn(true);
-      setCurrentTab('proveedores');
-      setProveedoresSubTab('operaciones');
-    } else {
-      alert("Contraseña incorrecta.");
-    }
+    if (passInput === 'Pampa2026') { setUserRole('gerente'); setIsLoggedIn(true); setCurrentTab('economico'); } 
+    else if (passInput === 'PampaCarga') { setUserRole('admin'); setIsLoggedIn(true); setCurrentTab('proveedores'); setProveedoresSubTab('operaciones'); } 
+    else { alert("Contraseña incorrecta."); }
   };
 
-  // --- ACCIONES FIREBASE ---
+  // --- ACTIONS FIREBASE ---
   const handleSaveProveedor = async (e) => {
     e.preventDefault();
     if (!db || savingProv) return;
     setSavingProv(true);
-    
     const formData = new FormData(e.target);
     const name = formData.get('name').trim();
     const phone = formData.get('phone').trim();
     const cuit = formData.get('cuit').trim();
     const address = formData.get('address').trim();
 
-    // 1. Validación de Duplicados
     const isDuplicate = proveedores.some(p => {
       if (editingProv && p.id === editingProv.id) return false;
       const sameName = p.name.toLowerCase() === name.toLowerCase();
@@ -269,29 +224,14 @@ const App = () => {
       return sameName || sameCuit;
     });
 
-    if (isDuplicate) {
-      alert(`⚠️ ERROR: Ya existe un proveedor con ese Nombre ("${name}") o CUIT.`);
-      setSavingProv(false);
-      return; 
-    }
+    if (isDuplicate) { alert(`⚠️ ERROR: Ya existe un proveedor con ese Nombre ("${name}") o CUIT.`); setSavingProv(false); return; }
 
     const newProv = { name, phone, cuit, address };
-
     try {
-      if (editingProv) {
-        await updateDoc(doc(db, 'proveedores', editingProv.id), newProv);
-      } else {
-        await addDoc(collection(db, 'proveedores'), newProv);
-      }
-      setShowProvModal(false);
-      setEditingProv(null);
-      fetchData('proveedores');
-    } catch (err) {
-      console.error(err);
-      alert("Error al guardar proveedor en base de datos.");
-    } finally {
-      setSavingProv(false);
-    }
+      if (editingProv) await updateDoc(doc(db, 'proveedores', editingProv.id), newProv);
+      else await addDoc(collection(db, 'proveedores'), newProv);
+      setShowProvModal(false); setEditingProv(null); fetchData('proveedores');
+    } catch (err) { alert("Error al guardar"); } finally { setSavingProv(false); }
   };
 
   const handleBulkImport = async () => {
@@ -299,7 +239,6 @@ const App = () => {
     setSavingProv(true);
     const lines = importText.split('\n');
     let addedCount = 0;
-
     for (let line of lines) {
       if (!line.trim()) continue;
       const parts = line.split(',');
@@ -311,25 +250,16 @@ const App = () => {
       if (!name) continue;
       const exists = proveedores.some(p => p.name.toLowerCase() === name.toLowerCase());
       if (!exists) {
-        try {
-          await addDoc(collection(db, 'proveedores'), { name, phone, cuit, address });
-          addedCount++;
-        } catch (e) { console.error(e); }
+        try { await addDoc(collection(db, 'proveedores'), { name, phone, cuit, address }); addedCount++; } catch (e) {}
       }
     }
-    setSavingProv(false);
-    setShowImportModal(false);
-    setImportText('');
-    fetchData('proveedores');
+    setSavingProv(false); setShowImportModal(false); setImportText(''); fetchData('proveedores');
     alert(`Importación finalizada. Agregados: ${addedCount}`);
   };
 
   const handleAddFactura = async (factura) => {
     if (!db) return;
-    try {
-      await addDoc(collection(db, 'facturas'), factura);
-      fetchData('proveedores'); 
-    } catch (e) { console.error(e); alert("Error al guardar"); }
+    try { await addDoc(collection(db, 'facturas'), factura); fetchData('proveedores'); } catch (e) { alert("Error al guardar"); }
   };
 
   const handleDeleteFactura = async (id) => {
@@ -342,19 +272,12 @@ const App = () => {
     try { await deleteDoc(doc(db, 'proveedores', id)); fetchData('proveedores'); } catch(e){ console.error(e); }
   };
 
-  const openEditModal = (prov) => {
-    setEditingProv(prov);
-    setShowProvModal(true);
-  };
-
-  const openNewModal = () => {
-    setEditingProv(null);
-    setShowProvModal(true);
-  };
+  const openEditModal = (prov) => { setEditingProv(prov); setShowProvModal(true); };
+  const openNewModal = () => { setEditingProv(null); setShowProvModal(true); };
 
   const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(val);
 
-  // --- MEMOS DE CÁLCULO ---
+  // --- MEMOS ---
   const economicStats = useMemo(() => {
     if (currentTab !== 'economico') return null;
     const filtered = data.filter(d => {
@@ -383,10 +306,7 @@ const App = () => {
     const pesoGastosFijos = ventasNetas > 0 ? (sum(buckets.gastos) / ventasNetas) * 100 : 0;
     const margenBrutoPct = ventasNetas > 0 ? (margenBruto / ventasNetas) * 100 : 0;
 
-    return { 
-      ventasNetas, ebitda, margenPct, totalGastos: sum(buckets.gastos), margenBruto, puntoEquilibrio, pesoGastosFijos, margenBrutoPct,
-      buckets 
-    };
+    return { ventasNetas, ebitda, margenPct, totalGastos: sum(buckets.gastos), margenBruto, puntoEquilibrio, pesoGastosFijos, margenBrutoPct, buckets };
   }, [data, selectedBranch, selectedMonth, currentTab]);
 
   const financialStats = useMemo(() => {
@@ -409,9 +329,7 @@ const App = () => {
     const dependenciaFinanciera = aportesNeto < 0 ? financiamientoNeto + aportesNeto : financiamientoNeto - aportesNeto;
     const cajaRealFinal = resultadoOperativo + cajaComprometida + personalNeto + financiamientoNeto;
 
-    return { 
-      resultadoOperativo, cajaComprometida, cajaLibreReal, personalNeto, financiamientoNeto, aportesNeto, dependenciaFinanciera, cajaRealFinal
-    };
+    return { resultadoOperativo, cajaComprometida, cajaLibreReal, personalNeto, financiamientoNeto, aportesNeto, dependenciaFinanciera, cajaRealFinal };
   }, [data, selectedMonth, currentTab]);
 
   const chartData = useMemo(() => {
@@ -447,28 +365,24 @@ const App = () => {
         { name: '4. Gastos', valor: stats.totalGastos, base: Math.max(0, stats.ebitda), fill: '#ef4444', label: '- Gastos Fijos' },
         { name: '5. EBITDA', valor: stats.ebitda, base: 0, fill: '#10b981', label: '= Resultado' }
       ];
-
       return { trend, waterfall };
     }
     return null;
   }, [data, selectedBranch, selectedMonth, currentTab, economicStats]);
 
-  // --- KPI PROVEEDORES (MODIFICADO: Lógica de Pagos Parciales) ---
   const proveedoresStats = useMemo(() => {
     if (currentTab !== 'proveedores') return null;
     
-    // Calculamos el saldo real (deuda) considerando pagos parciales
+    // Calcular facturas unificadas para uso en tabla y KPIs
     const facturasCalculadas = facturas.map(f => {
-      // Usamos || 0 para evitar NaN si el campo no existe o es vacío
       const net = parseFloat(f.netAmount) || 0;
       const tax = parseFloat(f.taxes) || 0;
       const total = net + tax;
       const paid = parseFloat(f.partialPayment) || 0;
       const debt = total - paid;
       
-      // Estado dinámico
       let computedStatus = 'Pendiente';
-      if (debt <= 0.5) computedStatus = 'Pagado'; // Tolerancia de 50 centavos
+      if (debt <= 0.5) computedStatus = 'Pagado'; 
       else if (paid > 0) computedStatus = 'Parcial';
 
       return { ...f, total, debt, computedStatus };
@@ -486,7 +400,6 @@ const App = () => {
     });
     const topDeudores = Object.entries(provDebt).map(([name, saldo]) => ({ nombre: name, saldo })).sort((a,b) => b.saldo - a.saldo).slice(0,5);
 
-    // Vencimientos por Semana (Simulado visual para datos demo)
     const vencimientosSemana = [
       { name: 'Semana 1', deuda: vencido * 0.4 },
       { name: 'Semana 2', deuda: vencido * 0.2 + porVencer * 0.3 },
@@ -518,6 +431,7 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] pb-20 font-sans text-slate-900">
+      <Styles />
       <nav className="bg-white border-b border-slate-100 h-20 px-8 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-4">
           <div className="h-10 w-10 rounded-xl bg-white shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden"><img src={LOGO_URL} alt="Logo" className="h-full w-full object-contain" /></div>
@@ -543,7 +457,7 @@ const App = () => {
 
       <main className="max-w-7xl mx-auto px-8 mt-10 space-y-10 animate-fade-in">
         
-        {/* FILTROS COMUNES (SOLO GERENTE VE FILTROS ECONÓMICOS) */}
+        {/* FILTROS COMUNES */}
         {userRole === 'gerente' && currentTab !== 'proveedores' && (
           <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
             <div className="flex items-center gap-3 mb-4 pl-2">
@@ -699,7 +613,7 @@ const App = () => {
           </>
         )}
 
-        {/* --- VISTA PROVEEDORES (NUEVO) --- */}
+        {/* --- VISTA PROVEEDORES --- */}
         {currentTab === 'proveedores' && (
           <div className="space-y-6">
             <div className="flex gap-4 mb-4">
@@ -757,61 +671,86 @@ const App = () => {
             )}
 
             {proveedoresSubTab === 'base' && (
-              <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-                <div className="flex justify-between items-center mb-6">
-                  <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Base de Proveedores</h3>
-                  <button className="bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-600" onClick={openNewModal}>+ Agregar</button>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-slate-100 text-slate-400 uppercase tracking-wider">
-                        <th className="p-3">Nombre</th>
-                        <th className="p-3">Teléfono</th>
-                        <th className="p-3">CUIT</th>
-                        <th className="p-3">Dirección</th>
-                        <th className="p-3 text-center">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {proveedores.map((p) => (
-                        <tr key={p.id} className="hover:bg-slate-50">
-                          <td className="p-3 font-bold text-slate-700">{p.name}</td>
-                          <td className="p-3 text-slate-500">{p.phone}</td>
-                          <td className="p-3 text-slate-500">{p.cuit}</td>
-                          <td className="p-3 text-slate-500">{p.address}</td>
-                          <td className="p-3 text-center flex justify-center gap-3">
-                             <button onClick={() => openEditModal(p)} className="text-blue-500 hover:text-blue-700"><Edit size={16}/></button>
-                             <button onClick={() => handleDeleteProveedor(p.id)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button>
-                          </td>
+              <>
+                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Base de Proveedores</h3>
+                    <div className="flex gap-2">
+                        <button className="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-700 flex items-center gap-2" onClick={() => setShowImportModal(true)}><Upload size={14}/> Importar Lista</button>
+                        <button className="bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-600" onClick={openNewModal}>+ Agregar</button>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-100 text-slate-400 uppercase tracking-wider">
+                          <th className="p-3">Nombre</th>
+                          <th className="p-3">Teléfono</th>
+                          <th className="p-3">CUIT</th>
+                          <th className="p-3">Dirección</th>
+                          <th className="p-3 text-center">Acciones</th>
                         </tr>
-                      ))}
-                      {proveedores.length === 0 && <tr><td colSpan="5" className="p-4 text-center text-slate-400">No hay proveedores cargados.</td></tr>}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {proveedores.map((p) => (
+                          <tr key={p.id} className="hover:bg-slate-50">
+                            <td className="p-3 font-bold text-slate-700">{p.name}</td>
+                            <td className="p-3 text-slate-500">{p.phone}</td>
+                            <td className="p-3 text-slate-500">{p.cuit}</td>
+                            <td className="p-3 text-slate-500">{p.address}</td>
+                            <td className="p-3 text-center flex justify-center gap-3">
+                               <button onClick={() => openEditModal(p)} className="text-blue-500 hover:text-blue-700"><Edit size={16}/></button>
+                               <button onClick={() => handleDeleteProveedor(p.id)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button>
+                            </td>
+                          </tr>
+                        ))}
+                        {proveedores.length === 0 && <tr><td colSpan="5" className="p-4 text-center text-slate-400">No hay proveedores cargados.</td></tr>}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-                {/* Formulario simple para agregar (Demo) */}
-                <div className="mt-8 pt-6 border-t border-slate-100">
-                  <h4 className="font-bold text-xs uppercase mb-4 text-slate-500">Nuevo Proveedor</h4>
-                  <form onSubmit={(e) => {
-                    e.preventDefault();
-                    const formData = new FormData(e.target);
-                    handleAddProveedor({
-                      name: formData.get('name'),
-                      phone: formData.get('phone'),
-                      cuit: formData.get('cuit'),
-                      address: formData.get('address'),
-                    });
-                    e.target.reset();
-                  }} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <input name="name" placeholder="Nombre" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" required />
-                    <input name="phone" placeholder="Teléfono" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" />
-                    <input name="cuit" placeholder="CUIT" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" />
-                    <input name="address" placeholder="Dirección" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" />
-                    <button type="submit" className="md:col-span-4 bg-slate-800 text-white p-3 rounded-xl text-xs font-bold hover:bg-slate-700">Guardar Proveedor</button>
-                  </form>
-                </div>
-              </div>
+
+                {/* MODAL AGREGAR/EDITAR PROVEEDOR */}
+                {showProvModal && (
+                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-3xl p-8 w-full max-w-lg shadow-2xl animate-fade-in">
+                      <div className="flex justify-between items-center mb-6">
+                        <h3 className="font-black text-lg text-slate-800 uppercase">{editingProv ? 'Editar Proveedor' : 'Nuevo Proveedor'}</h3>
+                        <button onClick={() => setShowProvModal(false)} className="p-2 hover:bg-slate-100 rounded-full"><X size={20}/></button>
+                      </div>
+                      <form onSubmit={handleSaveProveedor} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <input name="name" defaultValue={editingProv?.name} placeholder="Nombre" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 w-full" required />
+                        <input name="phone" defaultValue={editingProv?.phone} placeholder="Teléfono" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 w-full" />
+                        <input name="cuit" defaultValue={editingProv?.cuit} placeholder="CUIT" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 w-full" />
+                        <input name="address" defaultValue={editingProv?.address} placeholder="Dirección" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 w-full" />
+                        <button type="submit" className="md:col-span-2 bg-slate-800 text-white p-3 rounded-xl text-xs font-bold hover:bg-slate-700 flex justify-center items-center gap-2">
+                           <Save size={16} /> {editingProv ? 'Guardar Cambios' : 'Crear Proveedor'}
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                )}
+                 {showImportModal && (
+                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-3xl p-8 w-full max-w-lg shadow-2xl animate-fade-in">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="font-black text-lg text-slate-800 uppercase">Importar Masiva</h3>
+                        <button onClick={() => setShowImportModal(false)} className="p-2 hover:bg-slate-100 rounded-full"><X size={20}/></button>
+                      </div>
+                      <p className="text-xs text-slate-500 mb-4">Copia y pega tu lista de Excel aquí. Formato esperado por línea: <br/><strong>Nombre, Teléfono, CUIT, Dirección</strong></p>
+                      <textarea 
+                        className="w-full h-40 bg-slate-50 p-4 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 mb-4 font-mono"
+                        placeholder="Ejemplo:&#10;Lácteos del Sur, 299123456, 3011111111, Ruta 22&#10;Panificadora, 299654321, 3022222222, Centro"
+                        value={importText}
+                        onChange={(e) => setImportText(e.target.value)}
+                      />
+                      <button onClick={handleBulkImport} className="w-full bg-slate-800 text-white p-3 rounded-xl text-xs font-bold hover:bg-slate-700 flex justify-center items-center gap-2">
+                         <Upload size={16} /> Procesar Importación
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
             {proveedoresSubTab === 'operaciones' && (
@@ -861,13 +800,12 @@ const App = () => {
                     </tbody>
                    </table>
                 </div>
-                 {/* Formulario simple para agregar transacción (Demo) */}
+                 {/* Formulario simple para agregar transacción */}
                  <div className="mt-8 pt-6 border-t border-slate-100">
                   <h4 className="font-bold text-xs uppercase mb-4 text-slate-500">Nueva Factura</h4>
                   <form onSubmit={(e) => {
                     e.preventDefault();
                     const formData = new FormData(e.target);
-                    // Buscar nombre proveedor por ID (simulado)
                     const provId = formData.get('providerId');
                     const prov = proveedores.find(p => p.id === provId);
                     
@@ -881,10 +819,10 @@ const App = () => {
                       netAmount: parseFloat(formData.get('netAmount')),
                       taxes: parseFloat(formData.get('taxes')),
                       partialPayment: parseFloat(formData.get('initialPayment')) || 0,
-                      status: 'Pendiente' // Se recalcula al mostrar
+                      status: 'Pendiente' 
                     });
                     e.target.reset();
-                  }} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  }} className="grid grid-cols-1 md:grid-cols-4 gap-4">
                      <select name="providerId" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" required>
                         <option value="">Seleccionar Proveedor...</option>
                         {proveedores.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -897,8 +835,8 @@ const App = () => {
                      <input name="taxes" type="number" step="0.01" placeholder="Impuestos" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" required />
                      <input name="initialPayment" type="number" step="0.01" placeholder="Pago / Entrega Inicial" className="bg-emerald-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-600 font-bold text-emerald-700" />
                      
-                     <input name="description" placeholder="Descripción / Detalle" className="md:col-span-3 bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" />
-                     <button type="submit" className="md:col-span-3 bg-slate-800 text-white p-3 rounded-xl text-xs font-bold hover:bg-slate-700">Guardar Factura</button>
+                     <input name="description" placeholder="Descripción / Detalle" className="md:col-span-4 bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" />
+                     <button type="submit" className="md:col-span-4 bg-slate-800 text-white p-3 rounded-xl text-xs font-bold hover:bg-slate-700">Guardar Factura</button>
                   </form>
                 </div>
               </div>
