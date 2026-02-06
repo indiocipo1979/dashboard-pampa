@@ -4,7 +4,7 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, ComposedChart, ReferenceLine
 } from 'recharts';
 import { 
-  LayoutDashboard, TrendingUp, DollarSign, Percent, Store, Calendar, RefreshCcw, LogOut, ChevronRight, FileText, ArrowRight, Wallet, AlertTriangle, CheckCircle, HelpCircle, Activity, Scale, Filter, BarChart2, PieChart as PieIcon, Sliders, Banknote, Users, ArrowLeftRight, CreditCard, PiggyBank, Landmark, Briefcase, PlusCircle, Clock, AlertOctagon, Search, Trash2, Edit, Save, X
+  LayoutDashboard, TrendingUp, DollarSign, Percent, Store, Calendar, RefreshCcw, LogOut, ChevronRight, FileText, ArrowRight, Wallet, AlertTriangle, CheckCircle, HelpCircle, Activity, Scale, Filter, BarChart2, PieChart as PieIcon, Sliders, Banknote, Users, ArrowLeftRight, CreditCard, PiggyBank, Landmark, Briefcase, PlusCircle, Clock, AlertOctagon, Search, Trash2, Edit, Save, X, UserCog, User
 } from 'lucide-react';
 
 // FIREBASE IMPORTS
@@ -13,8 +13,8 @@ import { getAuth, signInAnonymously } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
 
 /**
- * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v4.0
- * Corrección Visual: Unificación de colores en Gauges (Todos Red->Green)
+ * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v4.2
+ * Feature: Perfiles de Usuario (Gerente vs Administrador)
  */
 
 // --- CONFIGURACIÓN FIREBASE OFUSCADA (Anti-Bloqueo Netlify) ---
@@ -124,13 +124,9 @@ const TrafficLightCard = ({ title, value, threshold, type = 'higherIsBetter', su
 
 const GaugeCard = ({ title, value, max = 100, type = 'higherIsBetter', suffix = '' }) => {
   const numValue = Math.max(0, Math.min(parseFloat(value), max));
-  // Rotación: -90 (izquierda) a 90 (derecha)
   const rotation = -90 + ((numValue / max) * 180);
-  
-  // Colores: Izquierda (Rojo), Centro (Amarillo), Derecha (Verde)
-  // Ahora es FIJO para todos los relojes para mantener consistencia visual.
+  // Colores fijos para consistencia visual (Rojo -> Verde)
   const colors = ['#ef4444', '#f59e0b', '#10b981']; 
-
   return (
     <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col items-center justify-between h-full relative overflow-hidden hover:shadow-md transition-all">
       <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 z-10 w-full text-center">{title}</h3>
@@ -163,6 +159,7 @@ const TabButton = ({ active, label, icon: Icon, onClick }) => (
 const App = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [password, setPassword] = useState('');
+  const [userRole, setUserRole] = useState(null); // 'gerente' | 'admin'
   const [currentTab, setCurrentTab] = useState('economico');
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState([]);
@@ -175,9 +172,9 @@ const App = () => {
   // Estados para Firebase
   const [proveedores, setProveedores] = useState([]);
   const [facturas, setFacturas] = useState([]);
-  const [proveedoresSubTab, setProveedoresSubTab] = useState('dashboard'); 
+  const [proveedoresSubTab, setProveedoresSubTab] = useState('operaciones'); // Por defecto operaciones para admin
 
-  // Auth Firebase
+  // Auth Firebase (Se activa con la contraseña maestra)
   const connectFirebase = async () => {
     if (!auth) return;
     try {
@@ -265,8 +262,18 @@ const App = () => {
 
   const handleLogin = (e) => {
     e.preventDefault();
-    if (password === 'Pampa2026') setIsLoggedIn(true);
-    else alert("Contraseña incorrecta.");
+    if (password === 'Pampa2026') {
+      setUserRole('gerente');
+      setIsLoggedIn(true);
+      setCurrentTab('economico');
+    } else if (password === 'PampaCarga') {
+      setUserRole('admin');
+      setIsLoggedIn(true);
+      setCurrentTab('proveedores');
+      setProveedoresSubTab('operaciones'); // Admin va directo a la carga
+    } else {
+      alert("Contraseña incorrecta.");
+    }
   };
 
   // --- ACCIONES FIREBASE ---
@@ -293,7 +300,7 @@ const App = () => {
 
   const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(val);
 
-  // --- MEMOS DE CÁLCULO ---
+  // ... (Memos EconomicStats, FinancialStats, ChartData igual que antes) ...
   const economicStats = useMemo(() => {
     if (currentTab !== 'economico') return null;
     const filtered = data.filter(d => {
@@ -392,14 +399,12 @@ const App = () => {
     return null;
   }, [data, selectedBranch, selectedMonth, currentTab, economicStats]);
 
-  // --- KPI PROVEEDORES ---
   const proveedoresStats = useMemo(() => {
     if (currentTab !== 'proveedores') return null;
     const totalDeuda = facturas.filter(f => f.status !== 'Pagado').reduce((acc, f) => acc + parseFloat(f.totalDebt || 0), 0);
     const vencido = facturas.filter(f => f.status !== 'Pagado' && new Date(f.dueDate) < new Date()).reduce((acc, f) => acc + parseFloat(f.totalDebt || 0), 0);
     const porVencer = facturas.filter(f => f.status !== 'Pagado' && new Date(f.dueDate) >= new Date()).reduce((acc, f) => acc + parseFloat(f.totalDebt || 0), 0);
     
-    // Top 5 Proveedores
     const provDebt = {};
     facturas.forEach(f => {
        if(f.status !== 'Pagado') {
@@ -408,7 +413,6 @@ const App = () => {
     });
     const topDeudores = Object.entries(provDebt).map(([name, saldo]) => ({ nombre: name, saldo })).sort((a,b) => b.saldo - a.saldo).slice(0,5);
 
-    // Vencimientos por Semana (Simulado visual para datos demo)
     const vencimientosSemana = [
       { name: 'Semana 1', deuda: vencido * 0.4 },
       { name: 'Semana 2', deuda: vencido * 0.2 + porVencer * 0.3 },
@@ -429,7 +433,8 @@ const App = () => {
         <div className="max-w-md w-full bg-white rounded-[2.5rem] shadow-2xl p-10 text-center border-b-8 border-amber-500 animate-fade-in">
           <div className="flex justify-center mb-8"><img src={LOGO_URL} alt="Logo" className="h-32 object-contain" /></div>
           <h2 className="text-3xl font-black text-slate-800 mb-2 uppercase">Fiambrerías Pampa</h2>
-          <form onSubmit={handleLogin} className="space-y-4 mt-8">
+          <p className="text-slate-400 text-sm mb-6">Identifíquese para acceder</p>
+          <form onSubmit={handleLogin} className="space-y-4">
             <input type="password" placeholder="Contraseña" className="w-full px-6 py-4 rounded-2xl border-2 text-center" onChange={(e) => setPassword(e.target.value)} />
             <button className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black">INGRESAR</button>
           </form>
@@ -446,31 +451,46 @@ const App = () => {
           <div className="h-10 w-10 rounded-xl bg-white shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden">
             <img src={LOGO_URL} alt="Logo" className="h-full w-full object-contain" />
           </div>
-          <h1 className="font-black text-lg tracking-tighter uppercase leading-none hidden sm:block">FIAMBRERIAS PAMPA</h1>
+          <h1 className="font-black text-lg tracking-tighter uppercase leading-none hidden sm:block">
+            {userRole === 'gerente' ? 'PANEL GERENCIAL' : 'MÓDULO DE CARGA'}
+          </h1>
         </div>
+        
+        {/* NAVEGACIÓN SEGÚN ROL */}
         <div className="flex bg-slate-100 p-1 rounded-2xl">
-          <TabButton active={currentTab === 'economico'} label="Económico" icon={BarChart2} onClick={() => setCurrentTab('economico')} />
-          <TabButton active={currentTab === 'financiero'} label="Flujo de Fondos" icon={Banknote} onClick={() => setCurrentTab('financiero')} />
+          {userRole === 'gerente' && (
+            <>
+              <TabButton active={currentTab === 'economico'} label="Económico" icon={BarChart2} onClick={() => setCurrentTab('economico')} />
+              <TabButton active={currentTab === 'financiero'} label="Flujo de Fondos" icon={Banknote} onClick={() => setCurrentTab('financiero')} />
+            </>
+          )}
+          {/* El botón de proveedores se muestra para ambos, pero el contenido interno cambia */}
           <TabButton active={currentTab === 'proveedores'} label="Proveedores" icon={Briefcase} onClick={() => setCurrentTab('proveedores')} />
         </div>
-        <div className="flex gap-4">
+
+        <div className="flex gap-4 items-center">
+          <span className="text-[10px] font-bold uppercase bg-slate-100 px-3 py-1 rounded-full text-slate-500 flex items-center gap-1">
+             {userRole === 'gerente' ? <UserCog size={14}/> : <User size={14}/>}
+             {userRole}
+          </span>
           <button onClick={() => fetchData(currentTab)} className="p-3 bg-slate-50 rounded-2xl hover:bg-slate-100"><RefreshCcw size={20}/></button>
-          <button onClick={() => setIsLoggedIn(false)} className="bg-slate-900 text-white px-6 py-2.5 rounded-2xl text-xs font-bold">SALIR</button>
+          <button onClick={() => { setIsLoggedIn(false); setUserRole(null); }} className="bg-slate-900 text-white px-6 py-2.5 rounded-2xl text-xs font-bold">SALIR</button>
         </div>
       </nav>
 
       <main className="max-w-7xl mx-auto px-8 mt-10 space-y-10 animate-fade-in">
         
-        {/* FILTROS COMUNES */}
-        {currentTab !== 'proveedores' && (
-          <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-            {/* ... (Filtros existentes) ... */}
-            <div className="flex items-center gap-3 mb-4 pl-2">
-              <div className="bg-amber-100 p-2 rounded-xl text-amber-600"><Sliders size={20} /></div>
-              <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Panel de Control: {currentTab.toUpperCase()}</h3>
-            </div>
-            <div className="flex flex-wrap gap-6">
-              {currentTab === 'economico' && (
+        {/* --- CONTENIDO ECONÓMICO (SOLO GERENTE) --- */}
+        {userRole === 'gerente' && currentTab === 'economico' && (
+          // ... (Aquí va todo el bloque de filtros y gráficos económicos)
+          <>
+            {/* FILTROS COMUNES */}
+            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+              <div className="flex items-center gap-3 mb-4 pl-2">
+                <div className="bg-amber-100 p-2 rounded-xl text-amber-600"><Sliders size={20} /></div>
+                <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Panel de Control: {currentTab.toUpperCase()}</h3>
+              </div>
+              <div className="flex flex-wrap gap-6">
                 <div className="flex-1 min-w-[200px]">
                   <label className="block text-xs font-black text-slate-400 uppercase mb-2 ml-1">Sucursal</label>
                   <div className="relative">
@@ -481,91 +501,111 @@ const App = () => {
                     <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={20} />
                   </div>
                 </div>
-              )}
-              <div className="flex-1 min-w-[200px]">
-                <label className="block text-xs font-black text-slate-400 uppercase mb-2 ml-1">Período</label>
-                <div className="relative">
-                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                  <select className="w-full bg-slate-50 hover:bg-slate-100 transition-colors px-12 py-4 rounded-2xl font-black text-slate-700 uppercase outline-none appearance-none" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
-                    {months.map(m => (<option key={m} value={m}>{formatPeriod(m)}</option>))}
-                  </select>
-                  <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={20} />
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-xs font-black text-slate-400 uppercase mb-2 ml-1">Período</label>
+                  <div className="relative">
+                    <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                    <select className="w-full bg-slate-50 hover:bg-slate-100 transition-colors px-12 py-4 rounded-2xl font-black text-slate-700 uppercase outline-none appearance-none" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
+                      {months.map(m => (<option key={m} value={m}>{formatPeriod(m)}</option>))}
+                    </select>
+                    <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={20} />
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
 
-        {/* --- VISTA ECONÓMICA --- */}
-        {currentTab === 'economico' && economicStats && (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-              <KPICard title="Ventas Netas" value={formatCurrency(economicStats.ventasNetas)} icon={TrendingUp} color="bg-blue-600" detail="Ingresos Reales" />
-              <KPICard title="Punto de Equilibrio" value={formatCurrency(economicStats.puntoEquilibrio)} icon={Scale} color="bg-purple-500" detail="Meta Mensual" />
-              <KPICard title="Margen Bruto" value={formatCurrency(economicStats.margenBruto)} icon={Wallet} color="bg-indigo-500" detail="Contribución" />
-              <KPICard title="Gastos Fijos" value={formatCurrency(economicStats.totalGastos)} icon={FileText} color="bg-red-600" detail="Estructura" />
-              <KPICard title="EBITDA" value={formatCurrency(economicStats.ebitda)} icon={DollarSign} color="bg-emerald-600" detail="Resultado" />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <GaugeCard title="Margen Bruto %" value={economicStats.margenBrutoPct.toFixed(1)} suffix="%" max={70} type="higherIsBetter" />
-              <GaugeCard title="Salud del Margen EBITDA" value={economicStats.margenPct.toFixed(1)} suffix="%" max={30} type="higherIsBetter" />
-              <GaugeCard title="Cobertura Punto de Equilibrio" value={economicStats.puntoEquilibrio > 0 ? ((economicStats.ventasNetas / economicStats.puntoEquilibrio) * 100).toFixed(0) : 0} suffix="%" max={200} type="higherIsBetter" />
-              <GaugeCard title="Peso Gastos Fijos s/Venta" value={economicStats.pesoGastosFijos.toFixed(1)} suffix="%" max={60} />
-            </div>
-            {chartData && (
+            {economicStats && (
               <>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
-                    <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><Scale size={16}/> Punto de Equilibrio vs Ventas</h3>
-                    <ResponsiveContainer width="100%" height="80%">
-                      <ComposedChart data={chartData.trend}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#cbd5e1'}} dy={10} />
-                        <Tooltip contentStyle={{borderRadius: '16px', border: 'none'}} formatter={(value) => formatCurrency(value)} />
-                        <Legend />
-                        <Bar dataKey="ventas" name="Ventas Reales" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={20} />
-                        <Line type="monotone" dataKey="equilibrio" name="Meta (Equilibrio)" stroke="#ef4444" strokeWidth={3} strokeDasharray="5 5" dot={{r: 4, fill: '#ef4444'}} />
-                      </ComposedChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
-                    <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><Activity size={16}/> Evolución del EBITDA</h3>
-                    <ResponsiveContainer width="100%" height="80%">
-                      <ComposedChart data={chartData.trend}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#cbd5e1'}} dy={10} />
-                        <Tooltip contentStyle={{borderRadius: '16px', border: 'none'}} formatter={(value) => formatCurrency(value)} />
-                        <Legend />
-                        <Bar dataKey="ventas" name="Ventas (Contexto)" fill="#e2e8f0" radius={[4, 4, 0, 0]} barSize={20} />
-                        <Line type="monotone" dataKey="ebitda" name="EBITDA" stroke="#10b981" strokeWidth={4} dot={{r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#fff'}} />
-                      </ComposedChart>
-                    </ResponsiveContainer>
-                  </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                  <KPICard title="Ventas Netas" value={formatCurrency(economicStats.ventasNetas)} icon={TrendingUp} color="bg-blue-600" detail="Ingresos Reales" />
+                  <KPICard title="Punto de Equilibrio" value={formatCurrency(economicStats.puntoEquilibrio)} icon={Scale} color="bg-purple-500" detail="Meta Mensual" />
+                  <KPICard title="Margen Bruto" value={formatCurrency(economicStats.margenBruto)} icon={Wallet} color="bg-indigo-500" detail="Contribución" />
+                  <KPICard title="Gastos Fijos" value={formatCurrency(economicStats.totalGastos)} icon={FileText} color="bg-red-600" detail="Estructura" />
+                  <KPICard title="EBITDA" value={formatCurrency(economicStats.ebitda)} icon={DollarSign} color="bg-emerald-600" detail="Resultado" />
                 </div>
-                <div className="grid grid-cols-1 gap-8">
-                  <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
-                    <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><BarChart2 size={16}/> Cascada de Resultados (P&L)</h3>
-                    <ResponsiveContainer width="100%" height="80%">
-                      <BarChart data={chartData.waterfall}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} interval={0} />
-                        <Tooltip cursor={{fill: 'transparent'}} content={({ payload }) => { if (payload && payload.length) return <div className="bg-white p-4 rounded-xl shadow-lg border"><p className="font-bold text-slate-500 text-xs">{payload[0].payload.label}</p><p className="font-black text-lg">{formatCurrency(payload[0].value)}</p></div>; return null; }} />
-                        <Bar dataKey="base" stackId="a" fill="transparent" />
-                        <Bar dataKey="valor" stackId="a" radius={[6, 6, 6, 6]}>
-                          {chartData.waterfall.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.fill} />))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <GaugeCard title="Margen Bruto %" value={economicStats.margenBrutoPct.toFixed(1)} suffix="%" max={70} type="higherIsBetter" />
+                  <GaugeCard title="Salud del Margen EBITDA" value={economicStats.margenPct.toFixed(1)} suffix="%" max={30} type="higherIsBetter" />
+                  <GaugeCard title="Cobertura Punto de Equilibrio" value={economicStats.puntoEquilibrio > 0 ? ((economicStats.ventasNetas / economicStats.puntoEquilibrio) * 100).toFixed(0) : 0} suffix="%" max={200} type="higherIsBetter" />
+                  <GaugeCard title="Peso Gastos Fijos s/Venta" value={economicStats.pesoGastosFijos.toFixed(1)} suffix="%" max={60} />
                 </div>
+                {chartData && (
+                  <>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                      <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
+                        <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><Scale size={16}/> Punto de Equilibrio vs Ventas</h3>
+                        <ResponsiveContainer width="100%" height="80%">
+                          <ComposedChart data={chartData.trend}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#cbd5e1'}} dy={10} />
+                            <Tooltip contentStyle={{borderRadius: '16px', border: 'none'}} formatter={(value) => formatCurrency(value)} />
+                            <Legend />
+                            <Bar dataKey="ventas" name="Ventas Reales" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={20} />
+                            <Line type="monotone" dataKey="equilibrio" name="Meta (Equilibrio)" stroke="#ef4444" strokeWidth={3} strokeDasharray="5 5" dot={{r: 4, fill: '#ef4444'}} />
+                          </ComposedChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
+                        <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><Activity size={16}/> Evolución del EBITDA</h3>
+                        <ResponsiveContainer width="100%" height="80%">
+                          <ComposedChart data={chartData.trend}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#cbd5e1'}} dy={10} />
+                            <Tooltip contentStyle={{borderRadius: '16px', border: 'none'}} formatter={(value) => formatCurrency(value)} />
+                            <Legend />
+                            <Bar dataKey="ventas" name="Ventas (Contexto)" fill="#e2e8f0" radius={[4, 4, 0, 0]} barSize={20} />
+                            <Line type="monotone" dataKey="ebitda" name="EBITDA" stroke="#10b981" strokeWidth={4} dot={{r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#fff'}} />
+                          </ComposedChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 gap-8">
+                      <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
+                        <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><BarChart2 size={16}/> Cascada de Resultados (P&L)</h3>
+                        <ResponsiveContainer width="100%" height="80%">
+                          <BarChart data={chartData.waterfall}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} interval={0} />
+                            <Tooltip cursor={{fill: 'transparent'}} content={({ payload }) => { if (payload && payload.length) return <div className="bg-white p-4 rounded-xl shadow-lg border"><p className="font-bold text-slate-500 text-xs">{payload[0].payload.label}</p><p className="font-black text-lg">{formatCurrency(payload[0].value)}</p></div>; return null; }} />
+                            <Bar dataKey="base" stackId="a" fill="transparent" />
+                            <Bar dataKey="valor" stackId="a" radius={[6, 6, 6, 6]}>
+                              {chartData.waterfall.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.fill} />))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  </>
+                )}
               </>
             )}
           </>
         )}
 
-        {/* --- VISTA FINANCIERA --- */}
-        {currentTab === 'financiero' && financialStats && (
+        {/* --- VISTA FINANCIERA (SOLO GERENTE) --- */}
+        {userRole === 'gerente' && currentTab === 'financiero' && financialStats && (
           <>
+             {/* ... (Contenido Financiero existente) ... */}
+             {/* ... FILTROS COMUNES DE NUEVO ... */}
+             <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 mb-8">
+              <div className="flex items-center gap-3 mb-4 pl-2">
+                <div className="bg-amber-100 p-2 rounded-xl text-amber-600"><Sliders size={20} /></div>
+                <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Panel de Control: {currentTab.toUpperCase()}</h3>
+              </div>
+              <div className="flex flex-wrap gap-6">
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-xs font-black text-slate-400 uppercase mb-2 ml-1">Período</label>
+                  <div className="relative">
+                    <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                    <select className="w-full bg-slate-50 hover:bg-slate-100 transition-colors px-12 py-4 rounded-2xl font-black text-slate-700 uppercase outline-none appearance-none" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
+                      {months.map(m => (<option key={m} value={m}>{formatPeriod(m)}</option>))}
+                    </select>
+                    <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={20} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <KPICard title="Resultado Operativo" value={formatCurrency(financialStats.resultadoOperativo)} icon={Activity} color="bg-blue-600" detail="1" subtext="Operaciones del mes" />
               <KPICard title="Caja Comprometida" value={formatCurrency(financialStats.cajaComprometida)} icon={AlertTriangle} color="bg-orange-500" detail="2" subtext="Deuda vieja pagada" />
@@ -618,16 +658,19 @@ const App = () => {
           </>
         )}
 
-        {/* --- VISTA PROVEEDORES (NUEVO) --- */}
+        {/* --- VISTA PROVEEDORES --- */}
         {currentTab === 'proveedores' && (
           <div className="space-y-6">
             <div className="flex gap-4 mb-4">
-              <button onClick={() => setProveedoresSubTab('dashboard')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'dashboard' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Tablero</button>
-              <button onClick={() => setProveedoresSubTab('operaciones')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'operaciones' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Operaciones</button>
+              {/* Si es gerente, ve todo. Si es admin, solo operaciones y base */}
+              {userRole === 'gerente' && (
+                <button onClick={() => setProveedoresSubTab('dashboard')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'dashboard' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Tablero Deuda</button>
+              )}
+              <button onClick={() => setProveedoresSubTab('operaciones')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'operaciones' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Carga de Facturas</button>
               <button onClick={() => setProveedoresSubTab('base')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'base' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Base Proveedores</button>
             </div>
 
-            {proveedoresSubTab === 'dashboard' && proveedoresStats && (
+            {userRole === 'gerente' && proveedoresSubTab === 'dashboard' && proveedoresStats && (
               <>
                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                   <KPICard title="Deuda Total" value={formatCurrency(proveedoresStats.totalDeuda)} icon={Wallet} color="bg-slate-800" detail="Total a Pagar" subtext="Saldo pendiente global" />
@@ -708,7 +751,6 @@ const App = () => {
                     </tbody>
                   </table>
                 </div>
-                {/* Formulario simple para agregar (Demo) */}
                 <div className="mt-8 pt-6 border-t border-slate-100">
                   <h4 className="font-bold text-xs uppercase mb-4 text-slate-500">Nuevo Proveedor</h4>
                   <form onSubmit={(e) => {
@@ -770,13 +812,11 @@ const App = () => {
                     </tbody>
                    </table>
                 </div>
-                 {/* Formulario simple para agregar transacción (Demo) */}
                  <div className="mt-8 pt-6 border-t border-slate-100">
                   <h4 className="font-bold text-xs uppercase mb-4 text-slate-500">Nueva Factura</h4>
                   <form onSubmit={(e) => {
                     e.preventDefault();
                     const formData = new FormData(e.target);
-                    // Buscar nombre proveedor por ID (simulado)
                     const provId = formData.get('providerId');
                     const prov = proveedores.find(p => p.id === provId);
                     
@@ -790,7 +830,7 @@ const App = () => {
                       netAmount: parseFloat(formData.get('netAmount')),
                       taxes: parseFloat(formData.get('taxes')),
                       partialPayment: 0,
-                      totalDebt: parseFloat(formData.get('netAmount')) + parseFloat(formData.get('taxes')), // Simplificado
+                      totalDebt: parseFloat(formData.get('netAmount')) + parseFloat(formData.get('taxes')), 
                       status: 'Pendiente'
                     });
                     e.target.reset();
@@ -819,8 +859,11 @@ const App = () => {
 };
 
 const mockData = [{ Mes: '2024-01', Sucursal: 'Centro', Concepto: 'Ingreso', Subconcepto: 'Efectivo', Monto: 100000 }];
-const root = createRoot(document.getElementById('root'));
-root.render(<App />);
+const container = document.getElementById('root');
+if (container) {
+  const root = createRoot(container);
+  root.render(<App />);
+}
 
 export default App;
 // --- ESTILOS INYECTADOS ---
