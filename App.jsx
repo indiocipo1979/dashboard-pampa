@@ -4,7 +4,7 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, ComposedChart, ReferenceLine
 } from 'recharts';
 import { 
-  LayoutDashboard, TrendingUp, DollarSign, Percent, Store, Calendar, RefreshCcw, LogOut, ChevronRight, FileText, ArrowRight, Wallet, AlertTriangle, CheckCircle, HelpCircle, Activity, Scale, Filter, BarChart2, PieChart as PieIcon, Sliders, Banknote, Users, ArrowLeftRight, CreditCard, PiggyBank, Landmark, Briefcase, PlusCircle, Clock, AlertOctagon, Search, Trash2, Edit, Save, X, UserCog, User, Upload
+  LayoutDashboard, TrendingUp, DollarSign, Percent, Store, Calendar, RefreshCcw, LogOut, ChevronRight, FileText, ArrowRight, Wallet, AlertTriangle, CheckCircle, HelpCircle, Activity, Scale, Filter, BarChart2, PieChart as PieIcon, Sliders, Banknote, Users, ArrowLeftRight, CreditCard, PiggyBank, Landmark, Briefcase, PlusCircle, Clock, AlertOctagon, Search, Trash2, Edit, Save, X, UserCog, User, Upload, Loader
 } from 'lucide-react';
 
 // FIREBASE IMPORTS
@@ -13,8 +13,8 @@ import { getAuth, signInAnonymously } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, updateDoc, doc, query, orderBy } from 'firebase/firestore';
 
 /**
- * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v6.6
- * Versión Optimizada: Modales de Proveedores restaurados.
+ * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v6.7
+ * Mejoras: Feedback de carga (Spinners) y Corrección Tooltip Cascada
  */
 
 // --- CONFIGURACIÓN FIREBASE OFUSCADA ---
@@ -139,12 +139,13 @@ const App = () => {
   const [facturas, setFacturas] = useState([]);
   const [proveedoresSubTab, setProveedoresSubTab] = useState('dashboard'); 
   
-  // Modales
+  // Modales y Loading States
   const [showProvModal, setShowProvModal] = useState(false);
   const [editingProv, setEditingProv] = useState(null);
   const [savingProv, setSavingProv] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [importText, setImportText] = useState('');
+  const [savingFactura, setSavingFactura] = useState(false);
 
   const connectFirebase = async () => {
     if (!auth) return;
@@ -258,8 +259,11 @@ const App = () => {
   };
 
   const handleAddFactura = async (factura) => {
-    if (!db) return;
-    try { await addDoc(collection(db, 'facturas'), factura); fetchData('proveedores'); } catch (e) { alert("Error al guardar"); }
+    if (!db || savingFactura) return;
+    setSavingFactura(true);
+    try { await addDoc(collection(db, 'facturas'), factura); fetchData('proveedores'); } 
+    catch (e) { alert("Error al guardar"); } 
+    finally { setSavingFactura(false); }
   };
 
   const handleDeleteFactura = async (id) => {
@@ -373,7 +377,6 @@ const App = () => {
   const proveedoresStats = useMemo(() => {
     if (currentTab !== 'proveedores') return null;
     
-    // Calcular facturas unificadas para uso en tabla y KPIs
     const facturasCalculadas = facturas.map(f => {
       const net = parseFloat(f.netAmount) || 0;
       const tax = parseFloat(f.taxes) || 0;
@@ -544,7 +547,18 @@ const App = () => {
                       <BarChart data={chartData.waterfall}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                         <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} interval={0} />
-                        <Tooltip cursor={{fill: 'transparent'}} content={({ payload }) => { if (payload && payload.length) return <div className="bg-white p-4 rounded-xl shadow-lg border"><p className="font-bold text-slate-500 text-xs">{payload[0].payload.label}</p><p className="font-black text-lg">{formatCurrency(payload[0].value)}</p></div>; return null; }} />
+                        <Tooltip cursor={{fill: 'transparent'}} content={({ active, payload }) => { 
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload;
+                            return (
+                              <div className="bg-white p-4 rounded-xl shadow-lg border">
+                                <p className="font-bold text-slate-500 text-xs">{data.label}</p>
+                                <p className="font-black text-lg text-slate-800">{formatCurrency(data.valor)}</p>
+                              </div>
+                            );
+                          }
+                          return null; 
+                        }} />
                         <Bar dataKey="base" stackId="a" fill="transparent" />
                         <Bar dataKey="valor" stackId="a" radius={[6, 6, 6, 6]}>
                           {chartData.waterfall.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.fill} />))}
@@ -586,8 +600,8 @@ const App = () => {
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} />
                   <YAxis hide />
-                  <Tooltip cursor={{fill: 'transparent'}} content={({ payload }) => { 
-                    if (payload && payload.length) {
+                  <Tooltip cursor={{fill: 'transparent'}} content={({ active, payload }) => { 
+                    if (active && payload && payload.length) {
                       const data = payload[0].payload;
                       return (
                         <div className="bg-white p-4 rounded-xl shadow-lg border">
@@ -676,8 +690,12 @@ const App = () => {
                   <div className="flex justify-between items-center mb-6">
                     <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Base de Proveedores</h3>
                     <div className="flex gap-2">
-                        <button className="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-700 flex items-center gap-2" onClick={() => setShowImportModal(true)}><Upload size={14}/> Importar Lista</button>
-                        <button className="bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-600" onClick={openNewModal}>+ Agregar</button>
+                        <button className="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-700 flex items-center gap-2" onClick={() => setShowImportModal(true)}>
+                           {savingProv ? <Loader className="animate-spin" size={14}/> : <Upload size={14}/>} Importar Lista
+                        </button>
+                        <button className="bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-600 flex items-center gap-2" onClick={openNewModal}>
+                           {savingProv ? <Loader className="animate-spin" size={14}/> : <PlusCircle size={14}/>} Agregar
+                        </button>
                     </div>
                   </div>
                   <div className="overflow-x-auto">
@@ -723,8 +741,9 @@ const App = () => {
                         <input name="phone" defaultValue={editingProv?.phone} placeholder="Teléfono" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 w-full" />
                         <input name="cuit" defaultValue={editingProv?.cuit} placeholder="CUIT" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 w-full" />
                         <input name="address" defaultValue={editingProv?.address} placeholder="Dirección" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 w-full" />
-                        <button type="submit" className="md:col-span-2 bg-slate-800 text-white p-3 rounded-xl text-xs font-bold hover:bg-slate-700 flex justify-center items-center gap-2">
-                           <Save size={16} /> {editingProv ? 'Guardar Cambios' : 'Crear Proveedor'}
+                        <button type="submit" disabled={savingProv} className="md:col-span-2 bg-slate-800 text-white p-3 rounded-xl text-xs font-bold hover:bg-slate-700 flex justify-center items-center gap-2 disabled:opacity-50">
+                           {savingProv ? <Loader className="animate-spin" size={16}/> : <Save size={16} />} 
+                           {savingProv ? 'Guardando...' : (editingProv ? 'Guardar Cambios' : 'Crear Proveedor')}
                         </button>
                       </form>
                     </div>
@@ -744,8 +763,9 @@ const App = () => {
                         value={importText}
                         onChange={(e) => setImportText(e.target.value)}
                       />
-                      <button onClick={handleBulkImport} className="w-full bg-slate-800 text-white p-3 rounded-xl text-xs font-bold hover:bg-slate-700 flex justify-center items-center gap-2">
-                         <Upload size={16} /> Procesar Importación
+                      <button onClick={handleBulkImport} disabled={savingProv} className="w-full bg-slate-800 text-white p-3 rounded-xl text-xs font-bold hover:bg-slate-700 flex justify-center items-center gap-2 disabled:opacity-50">
+                         {savingProv ? <Loader className="animate-spin" size={16}/> : <Upload size={16} />} 
+                         {savingProv ? 'Procesando...' : 'Procesar Importación'}
                       </button>
                     </div>
                   </div>
@@ -836,7 +856,10 @@ const App = () => {
                      <input name="initialPayment" type="number" step="0.01" placeholder="Pago / Entrega Inicial" className="bg-emerald-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-600 font-bold text-emerald-700" />
                      
                      <input name="description" placeholder="Descripción / Detalle" className="md:col-span-4 bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" />
-                     <button type="submit" className="md:col-span-4 bg-slate-800 text-white p-3 rounded-xl text-xs font-bold hover:bg-slate-700">Guardar Factura</button>
+                     <button type="submit" disabled={savingFactura} className="md:col-span-4 bg-slate-800 text-white p-3 rounded-xl text-xs font-bold hover:bg-slate-700 flex justify-center items-center gap-2 disabled:opacity-50">
+                        {savingFactura ? <Loader className="animate-spin" size={16} /> : <Save size={16} />}
+                        {savingFactura ? 'Guardando...' : 'Guardar Factura'}
+                     </button>
                   </form>
                 </div>
               </div>
