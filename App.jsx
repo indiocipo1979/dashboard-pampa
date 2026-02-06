@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createRoot } from 'react-dom/client';
 import { 
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, ComposedChart, ReferenceLine
 } from 'recharts';
@@ -9,14 +10,14 @@ import {
 // FIREBASE IMPORTS
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously } from 'firebase/auth';
-import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, deleteDoc, updateDoc, doc, query, orderBy } from 'firebase/firestore';
 
 /**
- * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v5.3 (FINAL STABLE)
- * Corrección: Eliminado renderizado manual para compatibilidad con Canvas/Vercel.
+ * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v5.4
+ * Mejora: Gestión de Proveedores (Alta, Baja y Modificación con Modal)
  */
 
-// --- CONFIGURACIÓN FIREBASE OFUSCADA (Anti-Bloqueo) ---
+// --- CONFIGURACIÓN FIREBASE OFUSCADA ---
 const REVERSED_KEY = "oKOPUQnl6XSFUpPsPfejfREkzXTPG4RyVADySazIA";
 const getRealKey = () => REVERSED_KEY.split('').reverse().join('');
 
@@ -123,7 +124,6 @@ const TabButton = ({ active, label, icon: Icon, onClick }) => (
 const App = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [password, setPassword] = useState('');
-  const [userRole, setUserRole] = useState(null); // 'gerente' | 'admin'
   const [currentTab, setCurrentTab] = useState('economico');
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState([]);
@@ -137,8 +137,12 @@ const App = () => {
   const [proveedores, setProveedores] = useState([]);
   const [facturas, setFacturas] = useState([]);
   const [proveedoresSubTab, setProveedoresSubTab] = useState('dashboard'); 
+  
+  // Estado para Modal de Proveedores
+  const [showProvModal, setShowProvModal] = useState(false);
+  const [editingProv, setEditingProv] = useState(null);
 
-  // Auth Firebase (Se activa con la contraseña maestra)
+  // Auth Firebase
   const connectFirebase = async () => {
     if (!auth) return;
     try {
@@ -174,7 +178,7 @@ const App = () => {
         setLoading(false);
       }
     } else {
-      // Google Sheets (Vía API Vercel)
+      // Google Sheets
       const sheetParam = targetTab === 'financiero' ? 'financiero' : 'ebitda';
       try {
         const res = await fetch(`/api/get-data?sheet=${sheetParam}`);
@@ -224,23 +228,48 @@ const App = () => {
 
   const handleLogin = (e) => {
     e.preventDefault();
-    const passInput = password.trim(); // Limpia espacios accidentales
-    
+    const passInput = password.trim();
     if (passInput === 'Pampa2026') {
-      setUserRole('gerente');
       setIsLoggedIn(true);
       setCurrentTab('economico');
     } else if (passInput === 'PampaCarga') {
-      setUserRole('admin');
       setIsLoggedIn(true);
       setCurrentTab('proveedores');
-      setProveedoresSubTab('operaciones'); // Admin va directo a la carga
+      setProveedoresSubTab('operaciones');
     } else {
       alert("Contraseña incorrecta.");
     }
   };
 
   // --- ACCIONES FIREBASE ---
+  const handleSaveProveedor = async (e) => {
+    e.preventDefault();
+    if (!db) return;
+    const formData = new FormData(e.target);
+    const newProv = {
+      name: formData.get('name'),
+      phone: formData.get('phone'),
+      cuit: formData.get('cuit'),
+      address: formData.get('address'),
+    };
+
+    try {
+      if (editingProv) {
+        // Editar
+        await updateDoc(doc(db, 'proveedores', editingProv.id), newProv);
+      } else {
+        // Crear nuevo
+        await addDoc(collection(db, 'proveedores'), newProv);
+      }
+      setShowProvModal(false);
+      setEditingProv(null);
+      fetchData('proveedores');
+    } catch (err) {
+      console.error(err);
+      alert("Error al guardar proveedor");
+    }
+  };
+
   const handleAddFactura = async (factura) => {
     if (!db) return;
     try {
@@ -249,17 +278,24 @@ const App = () => {
     } catch (e) { console.error(e); alert("Error al guardar"); }
   };
 
-   const handleAddProveedor = async (prov) => {
-    if (!db) return;
-    try {
-      await addDoc(collection(db, 'proveedores'), prov);
-      fetchData('proveedores');
-    } catch (e) { console.error(e); alert("Error al guardar"); }
-  };
-
   const handleDeleteFactura = async (id) => {
     if (!confirm("¿Borrar factura?")) return;
     try { await deleteDoc(doc(db, 'facturas', id)); fetchData('proveedores'); } catch(e){ console.error(e); }
+  };
+  
+  const handleDeleteProveedor = async (id) => {
+    if (!confirm("¿Borrar proveedor?")) return;
+    try { await deleteDoc(doc(db, 'proveedores', id)); fetchData('proveedores'); } catch(e){ console.error(e); }
+  };
+
+  const openEditModal = (prov) => {
+    setEditingProv(prov);
+    setShowProvModal(true);
+  };
+
+  const openNewModal = () => {
+    setEditingProv(null);
+    setShowProvModal(true);
   };
 
   const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(val);
@@ -415,30 +451,23 @@ const App = () => {
           <div className="h-10 w-10 rounded-xl bg-white shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden">
             <img src={LOGO_URL} alt="Logo" className="h-full w-full object-contain" />
           </div>
-          <h1 className="font-black text-lg tracking-tighter uppercase leading-none hidden sm:block">{userRole === 'gerente' ? 'PANEL GERENCIAL' : 'MÓDULO DE CARGA'}</h1>
+          <h1 className="font-black text-lg tracking-tighter uppercase leading-none hidden sm:block">FIAMBRERIAS PAMPA</h1>
         </div>
         <div className="flex bg-slate-100 p-1 rounded-2xl">
-          {userRole === 'gerente' && (
-            <>
-              <TabButton active={currentTab === 'economico'} label="Económico" icon={BarChart2} onClick={() => setCurrentTab('economico')} />
-              <TabButton active={currentTab === 'financiero'} label="Flujo de Fondos" icon={Banknote} onClick={() => setCurrentTab('financiero')} />
-            </>
-          )}
+          <TabButton active={currentTab === 'economico'} label="Económico" icon={BarChart2} onClick={() => setCurrentTab('economico')} />
+          <TabButton active={currentTab === 'financiero'} label="Flujo de Fondos" icon={Banknote} onClick={() => setCurrentTab('financiero')} />
           <TabButton active={currentTab === 'proveedores'} label="Proveedores" icon={Briefcase} onClick={() => setCurrentTab('proveedores')} />
         </div>
-        <div className="flex gap-4 items-center">
-          <span className="text-[10px] font-bold uppercase bg-slate-100 px-3 py-1 rounded-full text-slate-500 flex items-center gap-1">
-             {userRole === 'gerente' ? <UserCog size={14}/> : <User size={14}/>} {userRole}
-          </span>
+        <div className="flex gap-4">
           <button onClick={() => fetchData(currentTab)} className="p-3 bg-slate-50 rounded-2xl hover:bg-slate-100"><RefreshCcw size={20}/></button>
-          <button onClick={() => { setIsLoggedIn(false); setUserRole(null); }} className="bg-slate-900 text-white px-6 py-2.5 rounded-2xl text-xs font-bold">SALIR</button>
+          <button onClick={() => setIsLoggedIn(false)} className="bg-slate-900 text-white px-6 py-2.5 rounded-2xl text-xs font-bold">SALIR</button>
         </div>
       </nav>
 
       <main className="max-w-7xl mx-auto px-8 mt-10 space-y-10 animate-fade-in">
         
-        {/* FILTROS COMUNES (SOLO GERENTE VE FILTROS ECONÓMICOS) */}
-        {userRole === 'gerente' && currentTab !== 'proveedores' && (
+        {/* --- FILTROS --- */}
+        {currentTab !== 'proveedores' && (
           <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
             <div className="flex items-center gap-3 mb-4 pl-2">
               <div className="bg-amber-100 p-2 rounded-xl text-amber-600"><Sliders size={20} /></div>
@@ -593,16 +622,16 @@ const App = () => {
           </>
         )}
 
-        {/* --- VISTA PROVEEDORES (NUEVO) --- */}
+        {/* --- VISTA PROVEEDORES --- */}
         {currentTab === 'proveedores' && (
           <div className="space-y-6">
             <div className="flex gap-4 mb-4">
-              {userRole === 'gerente' && <button onClick={() => setProveedoresSubTab('dashboard')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'dashboard' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Tablero Deuda</button>}
-              <button onClick={() => setProveedoresSubTab('operaciones')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'operaciones' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Carga de Facturas</button>
+              <button onClick={() => setProveedoresSubTab('dashboard')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'dashboard' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Tablero</button>
+              <button onClick={() => setProveedoresSubTab('operaciones')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'operaciones' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Operaciones</button>
               <button onClick={() => setProveedoresSubTab('base')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'base' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Base Proveedores</button>
             </div>
 
-            {userRole === 'gerente' && proveedoresSubTab === 'dashboard' && proveedoresStats && (
+            {proveedoresSubTab === 'dashboard' && proveedoresStats && (
               <>
                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                   <KPICard title="Deuda Total" value={formatCurrency(proveedoresStats.totalDeuda)} icon={Wallet} color="bg-slate-800" detail="Total a Pagar" subtext="Saldo pendiente global" />
@@ -618,7 +647,6 @@ const App = () => {
                      </div>
                   </div>
                 </div>
-
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[400px] overflow-hidden">
                     <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><Briefcase size={16}/> Top Deudores</h3>
@@ -651,58 +679,63 @@ const App = () => {
             )}
 
             {proveedoresSubTab === 'base' && (
-              <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-                <div className="flex justify-between items-center mb-6">
-                  <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Base de Proveedores</h3>
-                  <button className="bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-600" onClick={() => {/* Lógica modal */}}>+ Agregar</button>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-slate-100 text-slate-400 uppercase tracking-wider">
-                        <th className="p-3">Nombre</th>
-                        <th className="p-3">Teléfono</th>
-                        <th className="p-3">CUIT</th>
-                        <th className="p-3">Dirección</th>
-                        <th className="p-3">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {proveedores.map((p) => (
-                        <tr key={p.id} className="hover:bg-slate-50">
-                          <td className="p-3 font-bold text-slate-700">{p.name}</td>
-                          <td className="p-3 text-slate-500">{p.phone}</td>
-                          <td className="p-3 text-slate-500">{p.cuit}</td>
-                          <td className="p-3 text-slate-500">{p.address}</td>
-                          <td className="p-3 text-slate-500"><button className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button></td>
+              <>
+                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Base de Proveedores</h3>
+                    <button className="bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-600" onClick={openNewModal}>+ Agregar</button>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-100 text-slate-400 uppercase tracking-wider">
+                          <th className="p-3">Nombre</th>
+                          <th className="p-3">Teléfono</th>
+                          <th className="p-3">CUIT</th>
+                          <th className="p-3">Dirección</th>
+                          <th className="p-3 text-center">Acciones</th>
                         </tr>
-                      ))}
-                      {proveedores.length === 0 && <tr><td colSpan="5" className="p-4 text-center text-slate-400">No hay proveedores cargados.</td></tr>}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {proveedores.map((p) => (
+                          <tr key={p.id} className="hover:bg-slate-50">
+                            <td className="p-3 font-bold text-slate-700">{p.name}</td>
+                            <td className="p-3 text-slate-500">{p.phone}</td>
+                            <td className="p-3 text-slate-500">{p.cuit}</td>
+                            <td className="p-3 text-slate-500">{p.address}</td>
+                            <td className="p-3 text-center flex justify-center gap-3">
+                               <button onClick={() => openEditModal(p)} className="text-blue-500 hover:text-blue-700"><Edit size={16}/></button>
+                               <button onClick={() => handleDeleteProveedor(p.id)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button>
+                            </td>
+                          </tr>
+                        ))}
+                        {proveedores.length === 0 && <tr><td colSpan="5" className="p-4 text-center text-slate-400">No hay proveedores cargados.</td></tr>}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-                {/* Formulario simple para agregar (Demo) */}
-                <div className="mt-8 pt-6 border-t border-slate-100">
-                  <h4 className="font-bold text-xs uppercase mb-4 text-slate-500">Nuevo Proveedor</h4>
-                  <form onSubmit={(e) => {
-                    e.preventDefault();
-                    const formData = new FormData(e.target);
-                    handleAddProveedor({
-                      name: formData.get('name'),
-                      phone: formData.get('phone'),
-                      cuit: formData.get('cuit'),
-                      address: formData.get('address'),
-                    });
-                    e.target.reset();
-                  }} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <input name="name" placeholder="Nombre" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" required />
-                    <input name="phone" placeholder="Teléfono" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" />
-                    <input name="cuit" placeholder="CUIT" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" />
-                    <input name="address" placeholder="Dirección" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500" />
-                    <button type="submit" className="md:col-span-4 bg-slate-800 text-white p-3 rounded-xl text-xs font-bold hover:bg-slate-700">Guardar Proveedor</button>
-                  </form>
-                </div>
-              </div>
+
+                {/* MODAL AGREGAR/EDITAR PROVEEDOR */}
+                {showProvModal && (
+                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-3xl p-8 w-full max-w-lg shadow-2xl animate-fade-in">
+                      <div className="flex justify-between items-center mb-6">
+                        <h3 className="font-black text-lg text-slate-800 uppercase">{editingProv ? 'Editar Proveedor' : 'Nuevo Proveedor'}</h3>
+                        <button onClick={() => setShowProvModal(false)} className="p-2 hover:bg-slate-100 rounded-full"><X size={20}/></button>
+                      </div>
+                      <form onSubmit={handleSaveProveedor} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <input name="name" defaultValue={editingProv?.name} placeholder="Nombre" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 w-full" required />
+                        <input name="phone" defaultValue={editingProv?.phone} placeholder="Teléfono" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 w-full" />
+                        <input name="cuit" defaultValue={editingProv?.cuit} placeholder="CUIT" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 w-full" />
+                        <input name="address" defaultValue={editingProv?.address} placeholder="Dirección" className="bg-slate-50 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 w-full" />
+                        <button type="submit" className="md:col-span-2 bg-slate-800 text-white p-3 rounded-xl text-xs font-bold hover:bg-slate-700 flex justify-center items-center gap-2">
+                           <Save size={16} /> {editingProv ? 'Guardar Cambios' : 'Crear Proveedor'}
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
             {proveedoresSubTab === 'operaciones' && (
