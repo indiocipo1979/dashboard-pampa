@@ -13,8 +13,8 @@ import { getAuth, signInAnonymously } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, updateDoc, doc, query, orderBy } from 'firebase/firestore';
 
 /**
- * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v6.5
- * Versión Optimizada: Todas las funciones + Estilos corregidos + Lógica unificada.
+ * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v6.6
+ * Versión Optimizada: Modales de Proveedores restaurados.
  */
 
 // --- CONFIGURACIÓN FIREBASE OFUSCADA ---
@@ -613,7 +613,7 @@ const App = () => {
           </>
         )}
 
-        {/* --- VISTA PROVEEDORES --- */}
+        {/* --- VISTA PROVEEDORES (NUEVO) --- */}
         {currentTab === 'proveedores' && (
           <div className="space-y-6">
             <div className="flex gap-4 mb-4">
