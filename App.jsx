@@ -13,8 +13,8 @@ import { getAuth, signInAnonymously } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, updateDoc, doc, query, orderBy } from 'firebase/firestore';
 
 /**
- * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v6.0 (GOLDEN COPY)
- * Incluye: Login Multiusuario + Validación Proveedores + Conexión Vercel
+ * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v6.1
+ * Corrección: Validación de Duplicados + Fix de Commit en GitHub
  */
 
 // --- CONFIGURACIÓN FIREBASE OFUSCADA ---
@@ -124,7 +124,7 @@ const TabButton = ({ active, label, icon: Icon, onClick }) => (
 const App = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [password, setPassword] = useState('');
-  const [userRole, setUserRole] = useState(null); // 'gerente' | 'admin'
+  const [userRole, setUserRole] = useState(null); 
   const [currentTab, setCurrentTab] = useState('economico');
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState([]);
@@ -142,6 +142,7 @@ const App = () => {
   // Estado para Modal de Proveedores
   const [showProvModal, setShowProvModal] = useState(false);
   const [editingProv, setEditingProv] = useState(null);
+  const [savingProv, setSavingProv] = useState(false);
 
   // Auth Firebase
   const connectFirebase = async () => {
@@ -179,7 +180,7 @@ const App = () => {
         setLoading(false);
       }
     } else {
-      // Google Sheets (Vía API Vercel)
+      // Google Sheets
       const sheetParam = targetTab === 'financiero' ? 'financiero' : 'ebitda';
       try {
         const res = await fetch(`/api/get-data?sheet=${sheetParam}`);
@@ -247,7 +248,9 @@ const App = () => {
   // --- ACCIONES FIREBASE ---
   const handleSaveProveedor = async (e) => {
     e.preventDefault();
-    if (!db) return;
+    if (!db || savingProv) return;
+    setSavingProv(true);
+    
     const formData = new FormData(e.target);
     const name = formData.get('name').trim();
     const phone = formData.get('phone').trim();
@@ -264,6 +267,7 @@ const App = () => {
 
     if (isDuplicate) {
       alert(`⚠️ ERROR: Ya existe un proveedor con ese Nombre ("${name}") o CUIT.`);
+      setSavingProv(false);
       return; 
     }
 
@@ -282,6 +286,8 @@ const App = () => {
     } catch (err) {
       console.error(err);
       alert("Error al guardar proveedor en base de datos.");
+    } finally {
+      setSavingProv(false);
     }
   };
 
@@ -460,6 +466,7 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] pb-20 font-sans text-slate-900">
+      <Styles />
       <nav className="bg-white border-b border-slate-100 h-20 px-8 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-4">
           <div className="h-10 w-10 rounded-xl bg-white shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden"><img src={LOGO_URL} alt="Logo" className="h-full w-full object-contain" /></div>
@@ -490,7 +497,7 @@ const App = () => {
           <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
             <div className="flex items-center gap-3 mb-4 pl-2">
               <div className="bg-amber-100 p-2 rounded-xl text-amber-600"><Sliders size={20} /></div>
-              <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Panel de Control: {currentTab.toUpperCase()}</h3>
+              <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Panel de Control</h3>
             </div>
             <div className="flex flex-wrap gap-6">
               {currentTab === 'economico' && (
