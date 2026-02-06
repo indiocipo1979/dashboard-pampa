@@ -4,7 +4,7 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, ComposedChart, ReferenceLine
 } from 'recharts';
 import { 
-  LayoutDashboard, TrendingUp, DollarSign, Percent, Store, Calendar, RefreshCcw, LogOut, ChevronRight, FileText, ArrowRight, Wallet, AlertTriangle, CheckCircle, HelpCircle, Activity, Scale, Filter, BarChart2, PieChart as PieIcon, Sliders, Banknote, Users, ArrowLeftRight, CreditCard, PiggyBank, Landmark, Briefcase, PlusCircle, Clock, AlertOctagon, Search, Trash2, Edit, Save, X, UserCog, User, Upload, Loader, Lock
+  LayoutDashboard, TrendingUp, DollarSign, Percent, Store, Calendar, RefreshCcw, LogOut, ChevronRight, FileText, ArrowRight, Wallet, AlertTriangle, CheckCircle, HelpCircle, Activity, Scale, Filter, BarChart2, PieChart as PieIcon, Sliders, Banknote, Users, ArrowLeftRight, CreditCard, PiggyBank, Landmark, Briefcase, PlusCircle, Clock, AlertOctagon, Search, Trash2, Edit, Save, X, UserCog, User, Upload, Loader, ThumbsUp
 } from 'lucide-react';
 
 // FIREBASE IMPORTS
@@ -13,8 +13,8 @@ import { getAuth, signInAnonymously } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, updateDoc, doc, query, orderBy } from 'firebase/firestore';
 
 /**
- * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v7.1
- * Feature: "Easter Egg" para Importación Masiva de Facturas (Doble Clic en Título)
+ * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v7.2
+ * Feature: Dashboard Proveedores Avanzado (Filtros por Proveedor, Calendario Real y Pagos)
  */
 
 // --- CONFIGURACIÓN FIREBASE OFUSCADA ---
@@ -134,10 +134,15 @@ const App = () => {
   const [selectedBranch, setSelectedBranch] = useState('Todas');
   const [selectedMonth, setSelectedMonth] = useState('Acumulado');
 
+  // Estados para Firebase
   const [proveedores, setProveedores] = useState([]);
   const [facturas, setFacturas] = useState([]);
   const [proveedoresSubTab, setProveedoresSubTab] = useState('dashboard'); 
   
+  // Filtros Dashboard Proveedores
+  const [provFilterPeriod, setProvFilterPeriod] = useState('Acumulado');
+  const [provFilterId, setProvFilterId] = useState('Todos');
+
   // Modales y Loading States
   const [showProvModal, setShowProvModal] = useState(false);
   const [editingProv, setEditingProv] = useState(null);
@@ -245,7 +250,7 @@ const App = () => {
     let addedCount = 0;
     for (let line of lines) {
       if (!line.trim()) continue;
-      const parts = line.split(/[;,]+/); // Separa por punto y coma o coma
+      const parts = line.split(/[;,]+/);
       if (parts.length < 1) continue;
       const name = parts[0]?.trim();
       const phone = parts[1]?.trim() || '';
@@ -261,7 +266,6 @@ const App = () => {
     alert(`Importación finalizada. Agregados: ${addedCount}`);
   };
 
-  // --- LÓGICA IMPORTACIÓN MASIVA FACTURAS (EASTER EGG) ---
   const handleBulkImportFacturas = async () => {
     if (!db || !invoiceImportText.trim()) return;
     setSavingFactura(true);
@@ -271,12 +275,9 @@ const App = () => {
 
     for (let line of lines) {
       if (!line.trim()) continue;
-      // Espera: Fecha[0], Proveedor[1], Nro[2], Detalle[3], Neto[4], Impuestos[5], Entrega[6], Vencimiento[7]
-      const parts = line.split(/[\t;]+/); // Soporta Tab (Excel) o punto y coma
-      
+      const parts = line.split(/[\t;]+/);
       if (parts.length < 5) { errorCount++; continue; }
-
-      const dateStr = parts[0]?.trim(); // Suponemos YYYY-MM-DD o DD/MM/YYYY
+      const dateStr = parts[0]?.trim(); 
       const provName = parts[1]?.trim();
       const invNum = parts[2]?.trim();
       const desc = parts[3]?.trim();
@@ -285,7 +286,6 @@ const App = () => {
       const paid = cleanMonto(parts[6]);
       const dueStr = parts[7]?.trim();
 
-      // Buscar proveedor
       const prov = proveedores.find(p => p.name.toLowerCase() === provName.toLowerCase());
       const provId = prov ? prov.id : 'unknown';
       const finalProvName = prov ? prov.name : provName;
@@ -388,13 +388,14 @@ const App = () => {
     const dependenciaFinanciera = aportesNeto < 0 ? financiamientoNeto + aportesNeto : financiamientoNeto - aportesNeto;
     const cajaRealFinal = resultadoOperativo + cajaComprometida + personalNeto + financiamientoNeto;
 
-    return { resultadoOperativo, cajaComprometida, cajaLibreReal, personalNeto, financiamientoNeto, aportesNeto, dependenciaFinanciera, cajaRealFinal };
+    return { resultOperativo: resultadoOperativo, cajaComprometida, cajaLibreReal, personalNeto, financiamientoNeto, aportesNeto, dependenciaFinanciera, cajaRealFinal };
   }, [data, selectedMonth, currentTab]);
 
   const chartData = useMemo(() => {
     if (currentTab === 'economico') {
       const filtered = data.filter(d => (selectedBranch === 'Todas' || d.Sucursal === selectedBranch));
       const months = [...new Set(filtered.map(d => d.Mes))].sort();
+      
       const trend = months.map(m => {
         const p = filtered.filter(d => d.Mes === m);
         const sumMonto = (arr) => arr.reduce((a, b) => a + (b.Monto || 0), 0);
@@ -415,6 +416,7 @@ const App = () => {
 
       const stats = economicStats || { ventasNetas: 0, margenBruto: 0, totalGastos: 0, ebitda: 0, buckets: { cmv: [] } };
       const cmvTotal = stats.buckets?.cmv ? stats.buckets.cmv.reduce((a,b)=>a+(b.Monto||0),0) : 0;
+
       const waterfall = [
         { name: '1. Ingresos', valor: stats.ventasNetas, base: 0, fill: '#3b82f6', label: 'Ventas Netas' },
         { name: '2. Mercadería', valor: cmvTotal, base: Math.max(0, stats.margenBruto), fill: '#f97316', label: '- Costo Mercadería' },
@@ -427,34 +429,94 @@ const App = () => {
     return null;
   }, [data, selectedBranch, selectedMonth, currentTab, economicStats]);
 
+  // --- KPI PROVEEDORES (MEJORADO: FILTROS + CALENDARIO REAL + PAGOS) ---
   const proveedoresStats = useMemo(() => {
     if (currentTab !== 'proveedores') return null;
-    const facturasCalculadas = facturas.map(f => {
+
+    // 1. Filtrar por Proveedor (si hay selección)
+    let filteredFacturas = facturas;
+    if (provFilterId !== 'Todas') {
+      filteredFacturas = facturas.filter(f => f.providerId === provFilterId || f.providerName === provFilterId);
+    }
+    
+    // 2. Procesar Facturas
+    const facturasCalculadas = filteredFacturas.map(f => {
       const net = parseFloat(f.netAmount) || 0;
       const tax = parseFloat(f.taxes) || 0;
       const total = net + tax;
       const paid = parseFloat(f.partialPayment) || 0;
       const debt = total - paid;
+      
       let computedStatus = 'Pendiente';
-      if (debt <= 0.5) computedStatus = 'Pagado'; 
+      if (debt <= 0.5 && debt >= -0.5) computedStatus = 'Pagado'; 
+      else if (debt < -0.5) computedStatus = 'A Favor';
       else if (paid > 0) computedStatus = 'Parcial';
-      return { ...f, total, debt, computedStatus };
+
+      return { ...f, total, debt, computedStatus, paid };
     });
 
-    const totalDeuda = facturasCalculadas.filter(f => f.computedStatus !== 'Pagado').reduce((acc, f) => acc + f.debt, 0);
-    const vencido = facturasCalculadas.filter(f => f.computedStatus !== 'Pagado' && new Date(f.dueDate) < new Date()).reduce((acc, f) => acc + f.debt, 0);
-    const porVencer = facturasCalculadas.filter(f => f.computedStatus !== 'Pagado' && new Date(f.dueDate) >= new Date()).reduce((acc, f) => acc + f.debt, 0);
+    // 3. Cálculos de KPIs
+    // Deuda Total: Suma de deudas positivas (lo que debo)
+    const totalDeuda = facturasCalculadas.filter(f => f.debt > 0.5).reduce((acc, f) => acc + f.debt, 0);
+    
+    // Saldo a Favor: Suma de deudas negativas (lo que me deben)
+    const totalCredito = facturasCalculadas.filter(f => f.debt < -0.5).reduce((acc, f) => acc + Math.abs(f.debt), 0);
+
+    // Vencido y Por Vencer (Solo deudas positivas)
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const vencido = facturasCalculadas.filter(f => f.debt > 0.5 && new Date(f.dueDate) < today).reduce((acc, f) => acc + f.debt, 0);
+    const porVencer = facturasCalculadas.filter(f => f.debt > 0.5 && new Date(f.dueDate) >= today).reduce((acc, f) => acc + f.debt, 0);
+
+    // Pagos Realizados en el Período Seleccionado
+    // Nota: Como no tenemos fecha de pago, usamos la fecha de factura como aproximación o sumamos todo si es acumulado.
+    // Para ser precisos con "cuanto se pagó en fecha X", necesitaríamos una tabla de "Pagos" separada.
+    // Aquí sumamos los pagos parciales de las facturas VISIBLES (filtradas por mes si aplicara, pero aquí filtramos por proveedor).
+    // Si quisieras filtrar por mes de factura:
+    let pagosPeriodo = 0;
+    if (provFilterPeriod !== 'Acumulado') {
+       // Filtrar facturas del mes seleccionado para sumar sus pagos
+       pagosPeriodo = facturasCalculadas.filter(f => f.invoiceDate.startsWith(provFilterPeriod)).reduce((acc, f) => acc + f.paid, 0);
+    } else {
+       pagosPeriodo = facturasCalculadas.reduce((acc, f) => acc + f.paid, 0);
+    }
+
+    // 4. Top Deudores (Siempre global o filtrado)
     const provDebt = {};
     facturasCalculadas.forEach(f => {
-       if(f.computedStatus !== 'Pagado') provDebt[f.providerName] = (provDebt[f.providerName] || 0) + f.debt;
+       if(f.debt > 0.5) provDebt[f.providerName] = (provDebt[f.providerName] || 0) + f.debt;
     });
     const topDeudores = Object.entries(provDebt).map(([name, saldo]) => ({ nombre: name, saldo })).sort((a,b) => b.saldo - a.saldo).slice(0,5);
+
+    // 5. Calendario de Vencimientos Real
+    // Agrupamos deuda futura por semanas
+    const week1End = new Date(today); week1End.setDate(today.getDate() + 7);
+    const week2End = new Date(today); week2End.setDate(today.getDate() + 14);
+    const week3End = new Date(today); week3End.setDate(today.getDate() + 21);
+
+    let week1 = 0, week2 = 0, week3 = 0, week4plus = 0;
+    
+    facturasCalculadas.filter(f => f.debt > 0.5 && new Date(f.dueDate) >= today).forEach(f => {
+        const d = new Date(f.dueDate);
+        if (d <= week1End) week1 += f.debt;
+        else if (d <= week2End) week2 += f.debt;
+        else if (d <= week3End) week3 += f.debt;
+        else week4plus += f.debt;
+    });
+
     const vencimientosSemana = [
-      { name: 'Semana 1', deuda: vencido * 0.4 }, { name: 'Semana 2', deuda: vencido * 0.2 + porVencer * 0.3 },
-      { name: 'Semana 3', deuda: porVencer * 0.4 }, { name: 'Semana 4', deuda: porVencer * 0.3 },
+      { name: 'Vencidas', deuda: vencido, fill: '#ef4444' }, // Rojo
+      { name: '7 Días', deuda: week1, fill: '#f59e0b' },     // Naranja
+      { name: '14 Días', deuda: week2, fill: '#3b82f6' },    // Azul
+      { name: '+30 Días', deuda: week4plus, fill: '#10b981' } // Verde
     ];
-    return { totalDeuda, vencido, porVencer, topDeudores, vencimientosSemana, facturasCalculadas };
-  }, [facturas, currentTab]);
+
+    return { totalDeuda, totalCredito, vencido, porVencer, pagosPeriodo, topDeudores, vencimientosSemana, facturasCalculadas };
+  }, [facturas, currentTab, provFilterId, provFilterPeriod]); // Dependencias actualizadas
+
+  // Generar lista única de meses y proveedores para filtros
+  const uniqueMonths = useMemo(() => ['Acumulado', ...new Set(facturas.map(f => f.invoiceDate.substring(0,7)))].sort().reverse(), [facturas]);
+  const uniqueProviders = useMemo(() => ['Todas', ...new Set(proveedores.map(p => p.name))].sort(), [proveedores]);
 
   const branches = ['Todas', ...new Set(data.map(d => d.Sucursal))].filter(Boolean);
   const months = ['Acumulado', ...new Set(data.map(d => d.Mes))].filter(Boolean).sort().reverse();
@@ -477,7 +539,6 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] pb-20 font-sans text-slate-900">
-      <Styles />
       <nav className="bg-white border-b border-slate-100 h-20 px-8 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-4">
           <div className="h-10 w-10 rounded-xl bg-white shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden"><img src={LOGO_URL} alt="Logo" className="h-full w-full object-contain" /></div>
@@ -511,15 +572,15 @@ const App = () => {
 
       <main className="max-w-7xl mx-auto px-8 mt-10 space-y-10 animate-fade-in">
         
-        {/* FILTROS COMUNES (SOLO GERENTE VE FILTROS ECONÓMICOS) */}
+        {/* --- VISTA ECONÓMICA Y FINANCIERA (SE MANTIENEN IGUAL) --- */}
         {userRole === 'gerente' && currentTab !== 'proveedores' && (
-          <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-            <div className="flex items-center gap-3 mb-4 pl-2">
-              <div className="bg-amber-100 p-2 rounded-xl text-amber-600"><Sliders size={20} /></div>
-              <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Panel de Control: {currentTab.toUpperCase()}</h3>
-            </div>
-            <div className="flex flex-wrap gap-6">
-              {currentTab === 'economico' && (
+           <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+             {/* ... Filtros Económicos (Código original) ... */}
+              <div className="flex items-center gap-3 mb-4 pl-2">
+                <div className="bg-amber-100 p-2 rounded-xl text-amber-600"><Sliders size={20} /></div>
+                <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Panel de Control: {currentTab.toUpperCase()}</h3>
+              </div>
+              <div className="flex flex-wrap gap-6">
                 <div className="flex-1 min-w-[200px]">
                   <label className="block text-xs font-black text-slate-400 uppercase mb-2 ml-1">Sucursal</label>
                   <div className="relative">
@@ -530,24 +591,24 @@ const App = () => {
                     <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={20} />
                   </div>
                 </div>
-              )}
-              <div className="flex-1 min-w-[200px]">
-                <label className="block text-xs font-black text-slate-400 uppercase mb-2 ml-1">Período</label>
-                <div className="relative">
-                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                  <select className="w-full bg-slate-50 hover:bg-slate-100 transition-colors px-12 py-4 rounded-2xl font-black text-slate-700 uppercase outline-none appearance-none" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
-                    {months.map(m => (<option key={m} value={m}>{formatPeriod(m)}</option>))}
-                  </select>
-                  <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={20} />
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-xs font-black text-slate-400 uppercase mb-2 ml-1">Período</label>
+                  <div className="relative">
+                    <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                    <select className="w-full bg-slate-50 hover:bg-slate-100 transition-colors px-12 py-4 rounded-2xl font-black text-slate-700 uppercase outline-none appearance-none" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
+                      {months.map(m => (<option key={m} value={m}>{formatPeriod(m)}</option>))}
+                    </select>
+                    <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={20} />
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
+           </div>
         )}
-
-        {/* --- VISTA ECONÓMICA --- */}
+        
+        {/* (Aquí irían los bloques de Vista Económica y Financiera tal cual estaban antes) */}
+        {/* ... (Omitidos para brevedad, pero deben estar en el archivo final) ... */}
         {currentTab === 'economico' && economicStats && (
-          <>
+            <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               <KPICard title="Ventas Netas" value={formatCurrency(economicStats.ventasNetas)} icon={TrendingUp} color="bg-blue-600" detail="Ingresos Reales" />
               <KPICard title="Punto de Equilibrio" value={formatCurrency(economicStats.puntoEquilibrio)} icon={Scale} color="bg-purple-500" detail="Meta Mensual" />
@@ -598,18 +659,7 @@ const App = () => {
                       <BarChart data={chartData.waterfall}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                         <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} interval={0} />
-                        <Tooltip cursor={{fill: 'transparent'}} content={({ active, payload }) => { 
-                          if (active && payload && payload.length) {
-                            const data = payload[0].payload;
-                            return (
-                              <div className="bg-white p-4 rounded-xl shadow-lg border">
-                                <p className="font-bold text-slate-500 text-xs">{data.label}</p>
-                                <p className="font-black text-lg text-slate-800">{formatCurrency(data.valor)}</p>
-                              </div>
-                            );
-                          }
-                          return null; 
-                        }} />
+                        <Tooltip cursor={{fill: 'transparent'}} content={({ active, payload }) => { if (active && payload && payload.length) { const data = payload[0].payload; return ( <div className="bg-white p-4 rounded-xl shadow-lg border"><p className="font-bold text-slate-500 text-xs">{data.label}</p><p className="font-black text-lg text-slate-800">{formatCurrency(data.valor)}</p></div> ); } return null; }} />
                         <Bar dataKey="base" stackId="a" fill="transparent" />
                         <Bar dataKey="valor" stackId="a" radius={[6, 6, 6, 6]}>
                           {chartData.waterfall.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.fill} />))}
@@ -620,12 +670,10 @@ const App = () => {
                 </div>
               </>
             )}
-          </>
         )}
-
-        {/* --- VISTA FINANCIERA --- */}
+        
         {currentTab === 'financiero' && financialStats && (
-          <>
+           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <KPICard title="Resultado Operativo" value={formatCurrency(financialStats.resultadoOperativo)} icon={Activity} color="bg-blue-600" detail="1" subtext="Operaciones del mes" />
               <KPICard title="Caja Comprometida" value={formatCurrency(financialStats.cajaComprometida)} icon={AlertTriangle} color="bg-orange-500" detail="2" subtext="Deuda vieja pagada" />
@@ -675,36 +723,73 @@ const App = () => {
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          </>
+           </>
         )}
 
-        {/* --- VISTA PROVEEDORES --- */}
+        {/* --- VISTA PROVEEDORES (MEJORADO) --- */}
         {currentTab === 'proveedores' && (
           <div className="space-y-6">
-            <div className="flex gap-4 mb-4">
-              {userRole === 'gerente' && <button onClick={() => setProveedoresSubTab('dashboard')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'dashboard' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Tablero Deuda</button>}
-              <button onClick={() => setProveedoresSubTab('operaciones')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'operaciones' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Carga de Facturas</button>
-              <button onClick={() => setProveedoresSubTab('base')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'base' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Base Proveedores</button>
+            <div className="flex flex-col sm:flex-row justify-between gap-4">
+               {/* Navegación Sub-Tabs */}
+               <div className="flex gap-4">
+                  {userRole === 'gerente' && <button onClick={() => setProveedoresSubTab('dashboard')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'dashboard' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Tablero Deuda</button>}
+                  <button onClick={() => setProveedoresSubTab('operaciones')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'operaciones' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Carga de Facturas</button>
+                  <button onClick={() => setProveedoresSubTab('base')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'base' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Base Proveedores</button>
+               </div>
+               
+               {/* FILTROS EXCLUSIVOS DEL DASHBOARD DE PROVEEDORES */}
+               {proveedoresSubTab === 'dashboard' && (
+                  <div className="flex gap-2">
+                    <select className="bg-white px-4 py-2 rounded-xl text-xs font-bold text-slate-600 border border-slate-100 outline-none" value={provFilterId} onChange={(e) => setProvFilterId(e.target.value)}>
+                       <option value="Todas">Todos los Proveedores</option>
+                       {uniqueProviders.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                    <select className="bg-white px-4 py-2 rounded-xl text-xs font-bold text-slate-600 border border-slate-100 outline-none" value={provFilterPeriod} onChange={(e) => setProvFilterPeriod(e.target.value)}>
+                       {uniqueMonths.map(m => <option key={m} value={m}>{formatPeriod(m)}</option>)}
+                    </select>
+                  </div>
+               )}
             </div>
 
             {userRole === 'gerente' && proveedoresSubTab === 'dashboard' && proveedoresStats && (
               <>
-                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                  <KPICard title="Deuda Total" value={formatCurrency(proveedoresStats.totalDeuda)} icon={Wallet} color="bg-slate-800" detail="Total a Pagar" subtext="Saldo pendiente global" />
-                  <KPICard title="Vencido (Impago)" value={formatCurrency(proveedoresStats.vencido)} icon={AlertOctagon} color="bg-red-600" detail="Urgente" subtext="Facturas vencidas" />
+                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                  <KPICard title="Deuda Total" value={formatCurrency(proveedoresStats.totalDeuda)} icon={Wallet} color="bg-slate-800" detail="Actual" subtext={provFilterId === 'Todas' ? "Global" : "Saldo Proveedor"} />
+                  
+                  {/* KPI DE PAGO REALIZADO (NUEVO) */}
                   <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col justify-between">
                      <div className="flex justify-between items-start mb-4">
-                       <div className="p-3 rounded-2xl bg-amber-100 text-amber-600 bg-opacity-10"><Clock className="w-6 h-6"/></div>
+                       <div className="p-3 rounded-2xl bg-emerald-100 text-emerald-600 bg-opacity-10"><Banknote className="w-6 h-6"/></div>
                      </div>
                      <div>
-                       <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Próximos Vencimientos</p>
-                       <h3 className="text-2xl font-black text-slate-800 mt-1">Ver Calendario</h3>
-                       <p className="text-[10px] text-slate-500 mt-2 font-medium bg-slate-50 p-2 rounded-lg leading-snug">Detalle semanal abajo</p>
+                       <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Pagos Realizados</p>
+                       <h3 className="text-2xl font-black text-emerald-600 mt-1">{formatCurrency(proveedoresStats.pagosPeriodo)}</h3>
+                       <p className="text-[10px] text-slate-500 mt-2 font-medium bg-slate-50 p-2 rounded-lg leading-snug">En período seleccionado</p>
                      </div>
                   </div>
+
+                  <KPICard title="Vencido (Impago)" value={formatCurrency(proveedoresStats.vencido)} icon={AlertOctagon} color="bg-red-600" detail="Urgente" subtext="Facturas ya vencidas" />
+                  <KPICard title="Próximos Vencimientos" value={formatCurrency(proveedoresStats.porVencer)} icon={Clock} color="bg-amber-500" detail="A futuro" subtext="Deuda no vencida" />
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* CALENDARIO DE VENCIMIENTOS REAL (Barras) */}
+                   <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[400px] flex flex-col justify-center text-slate-400 font-bold uppercase text-xs">
+                      <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2 self-start"><Calendar size={16}/> Calendario de Pagos</h3>
+                      <ResponsiveContainer width="100%" height="85%">
+                        <BarChart data={proveedoresStats.vencimientosSemana}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} />
+                          <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '16px', border: 'none'}} formatter={(value) => formatCurrency(value)} />
+                          <Bar dataKey="deuda" radius={[6, 6, 6, 6]} barSize={40}>
+                            {proveedoresStats.vencimientosSemana.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.fill} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                   </div>
+
                   <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[400px] overflow-hidden">
                     <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><Briefcase size={16}/> Top Deudores</h3>
                     <div className="space-y-3">
@@ -721,20 +806,11 @@ const App = () => {
                       ))}
                     </div>
                   </div>
-                   <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[400px] flex items-center justify-center text-slate-400 font-bold uppercase text-xs">
-                      <ResponsiveContainer width="100%" height="85%">
-                        <BarChart data={proveedoresStats.vencimientosSemana}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} />
-                          <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '16px', border: 'none'}} formatter={(value) => formatCurrency(value)} />
-                          <Bar dataKey="deuda" fill="#ef4444" radius={[6, 6, 6, 6]} barSize={40} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                   </div>
                 </div>
               </>
             )}
 
+            {/* --- (MISMAS VISTAS DE BASE Y OPERACIONES DE ANTES) --- */}
             {proveedoresSubTab === 'base' && (
               <>
                 <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
@@ -827,7 +903,7 @@ const App = () => {
             {proveedoresSubTab === 'operaciones' && (
               <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
                  <div className="flex justify-between items-center mb-6">
-                  {/* EASTER EGG TRIGGER: Doble Clic en el Título abre importación de Facturas */}
+                  {/* EASTER EGG TRIGGER */}
                   <h3 
                     onDoubleClick={() => setShowInvoiceImportModal(true)}
                     className="font-black text-sm uppercase tracking-widest text-slate-600 cursor-pointer select-none hover:text-slate-800 transition-colors"
@@ -860,11 +936,14 @@ const App = () => {
                           <td className="p-3 text-slate-500">{f.description}</td>
                           <td className="p-3 text-right font-mono text-slate-600">{formatCurrency(f.total)}</td>
                           <td className="p-3 text-right font-mono text-emerald-600">{formatCurrency(f.partialPayment || 0)}</td>
-                          <td className="p-3 text-right font-mono font-bold text-red-600">{formatCurrency(f.debt)}</td>
+                          <td className={`p-3 text-right font-mono font-bold ${f.debt < 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                             {formatCurrency(Math.abs(f.debt))} {f.debt < 0 ? '(Crédito)' : ''}
+                          </td>
                           <td className="p-3 text-center">
                             <span className={`px-2 py-1 rounded-full text-[9px] font-bold uppercase 
                               ${f.computedStatus === 'Pagado' ? 'bg-emerald-100 text-emerald-600' : 
                                 f.computedStatus === 'Parcial' ? 'bg-amber-100 text-amber-600' : 
+                                f.computedStatus === 'A Favor' ? 'bg-blue-100 text-blue-600' :
                                 'bg-red-100 text-red-600'}`}>
                               {f.computedStatus}
                             </span>
