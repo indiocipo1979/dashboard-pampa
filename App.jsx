@@ -13,10 +13,8 @@ import { getAuth, signInAnonymously } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, updateDoc, doc, query, orderBy } from 'firebase/firestore';
 
 /**
- * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v8.5 (RESTAURADO)
- * - Relojes (Gauges) visibles.
- * - Carga de Facturas con Pago Inicial incluido.
- * - Conexión Vercel OK.
+ * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL RESTAURADO
+ * Versión que recupera los Gauges y la compatibilidad con datos históricos.
  */
 
 // --- CONFIGURACIÓN FIREBASE OFUSCADA ---
@@ -43,15 +41,19 @@ const LOGO_URL = "https://raw.githubusercontent.com/indiocipo1979/dashboard-pamp
 // Helpers
 const cleanMonto = (val) => {
   if (typeof val === 'number') return Math.abs(val);
-  let str = String(val || '0').trim();
+  if (!val) return 0;
+  let str = String(val).trim();
   str = str.replace(/[^0-9.,-]/g, '');
   if (str === '' || str === '-') return 0;
-  if (str.includes(',') && str.includes('.')) {
-      if (str.lastIndexOf(',') > str.lastIndexOf('.')) str = str.replace(/\./g, '').replace(',', '.');
-      else str = str.replace(/,/g, '');
-  } else if (str.includes(',')) str = str.replace(',', '.');
-  else if (str.includes('.')) str = str.replace(/\./g, '');
-  return Math.abs(parseFloat(str) || 0);
+  try {
+    if (str.includes(',') && str.includes('.')) {
+        if (str.lastIndexOf(',') > str.lastIndexOf('.')) str = str.replace(/\./g, '').replace(',', '.');
+        else str = str.replace(/,/g, '');
+    } else if (str.includes(',')) str = str.replace(',', '.');
+    else if (str.includes('.')) str = str.replace(/\./g, '');
+    const res = parseFloat(str);
+    return isNaN(res) ? 0 : Math.abs(res);
+  } catch (e) { return 0; }
 };
 
 const formatPeriod = (periodStr) => {
@@ -135,7 +137,6 @@ const App = () => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState([]);
   const [error, setError] = useState(null);
-  const [usingMockData, setUsingMockData] = useState(false);
   
   const [selectedBranch, setSelectedBranch] = useState('Todas');
   const [selectedMonth, setSelectedMonth] = useState('Acumulado');
@@ -157,6 +158,10 @@ const App = () => {
   const [showInvoiceImportModal, setShowInvoiceImportModal] = useState(false);
   const [invoiceImportText, setInvoiceImportText] = useState('');
 
+  // Filtros Dashboard Proveedores
+  const [provFilterPeriod, setProvFilterPeriod] = useState('Acumulado');
+  const [provFilterId, setProvFilterId] = useState('Todas');
+
   const connectFirebase = async () => {
     if (!auth) return;
     try { await signInAnonymously(auth); } catch (e) { console.error("Error auth:", e); }
@@ -165,7 +170,6 @@ const App = () => {
   const fetchData = async (targetTab) => {
     setLoading(true);
     setError(null);
-    setUsingMockData(false);
 
     if (targetTab === 'proveedores') {
       if (!db) { setError("Falta config Firebase"); setLoading(false); return; }
@@ -175,8 +179,10 @@ const App = () => {
         
         const factSnap = await getDocs(query(collection(db, 'facturas'), orderBy('invoiceDate', 'desc')));
         setFacturas(factSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      } catch (err) { setError("Error Firebase"); } finally { setLoading(false); }
+      } catch (err) { setError("Error cargando base de datos."); } 
+      finally { setLoading(false); }
     } else {
+      // API Vercel
       const sheetParam = targetTab === 'financiero' ? 'financiero' : 'ebitda';
       try {
         const res = await fetch(`/api/get-data?sheet=${sheetParam}`);
@@ -197,7 +203,8 @@ const App = () => {
           Origen: String(item.Origen || '').trim()
         }));
         setData(formatted);
-      } catch (err) { setError(`Fallo conexión: ${err.message}`); setData(mockData); } finally { setLoading(false); }
+      } catch (err) { setError(`Fallo conexión: ${err.message}`); setData([]); } 
+      finally { setLoading(false); }
     }
   };
 
@@ -217,6 +224,7 @@ const App = () => {
     else { alert("Contraseña incorrecta."); }
   };
 
+  // --- ACTIONS FIREBASE ---
   const handleSaveProveedor = async (e) => {
     e.preventDefault();
     if (!db || saving) return;
@@ -400,8 +408,14 @@ const App = () => {
   const proveedoresStats = useMemo(() => {
     if (currentTab !== 'proveedores') return null;
     
-    // Calculamos el saldo real (deuda) considerando pagos parciales (CARGADOS EN LA FACTURA)
-    const facturasCalculadas = facturas.map(f => {
+    // Filtrar por proveedor seleccionado
+    let filteredFacturas = facturas;
+    if (provFilterId !== 'Todas') {
+      filteredFacturas = facturas.filter(f => f.providerId === provFilterId || f.providerName === provFilterId);
+    }
+    
+    // Calcular facturas unificadas para uso en tabla y KPIs
+    const facturasCalculadas = filteredFacturas.map(f => {
       // Soporte para ambos formatos
       const net = parseFloat(f.netAmount) || 0;
       const tax = parseFloat(f.taxes) || 0;
@@ -428,6 +442,7 @@ const App = () => {
     const totalDeuda = facturasCalculadas.filter(f => f.debt > 0.5).reduce((acc, f) => acc + f.debt, 0);
     const totalCredito = facturasCalculadas.filter(f => f.debt < -0.5).reduce((acc, f) => acc + Math.abs(f.debt), 0);
     const vencido = facturasCalculadas.filter(f => f.debt > 0.5 && new Date(f.dueDate) < new Date()).reduce((acc, f) => acc + f.debt, 0);
+    const porVencer = facturasCalculadas.filter(f => f.debt > 0.5 && new Date(f.dueDate) >= new Date()).reduce((acc, f) => acc + f.debt, 0);
     
     const provDebt = {};
     facturasCalculadas.forEach(f => {
@@ -436,12 +451,14 @@ const App = () => {
     const topDeudores = Object.entries(provDebt).map(([name, saldo]) => ({ nombre: name, saldo })).sort((a,b) => b.saldo - a.saldo).slice(0,5);
 
     const vencimientosSemana = [
-      { name: 'Vencido', deuda: vencido },
-      { name: 'A Vencer', deuda: totalDeuda - vencido }
+      { name: 'Vencido', deuda: vencido, fill: '#ef4444' },
+      { name: 'A Vencer', deuda: porVencer, fill: '#f59e0b' }
     ];
 
-    return { totalDeuda, totalCredito, vencido, topDeudores, vencimientosSemana, facturasCalculadas };
-  }, [facturas, currentTab]);
+    return { totalDeuda, totalCredito, vencido, porVencer, topDeudores, vencimientosSemana, facturasCalculadas };
+  }, [facturas, currentTab, provFilterId]);
+
+  const uniqueProviders = useMemo(() => ['Todas', ...new Set(proveedores.map(p => p.name))].sort(), [proveedores]);
 
   const branches = ['Todas', ...new Set(data.map(d => d.Sucursal))].filter(Boolean);
   const months = ['Acumulado', ...new Set(data.map(d => d.Mes))].filter(Boolean).sort().reverse();
@@ -673,47 +690,32 @@ const App = () => {
               <button onClick={() => setProveedoresSubTab('operaciones')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'operaciones' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Carga de Facturas</button>
               <button onClick={() => setProveedoresSubTab('base')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'base' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Base Proveedores</button>
             </div>
+            
+            {/* FILTROS DASHBOARD PROVEEDORES */}
+            {userRole === 'gerente' && proveedoresSubTab === 'dashboard' && (
+               <div className="flex gap-2 mb-4 justify-end">
+                    <select className="bg-white px-4 py-2 rounded-xl text-xs font-bold text-slate-600 border border-slate-100 outline-none" value={provFilterId} onChange={(e) => setProvFilterId(e.target.value)}>
+                       <option value="Todas">Todos los Proveedores</option>
+                       {['Todas', ...new Set(proveedores.map(p => p.name))].sort().map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+               </div>
+            )}
 
             {userRole === 'gerente' && proveedoresSubTab === 'dashboard' && proveedoresStats && (
               <>
                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                  <KPICard title="Deuda Total" value={formatCurrency(proveedoresStats.totalDeuda)} icon={Wallet} color="bg-slate-800" detail="Total a Pagar" subtext="Saldo pendiente global" />
-                  <KPICard title="Vencido (Impago)" value={formatCurrency(proveedoresStats.vencido)} icon={AlertOctagon} color="bg-red-600" detail="Urgente" subtext="Facturas vencidas" />
-                  <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col justify-between">
-                     <div className="flex justify-between items-start mb-4">
-                       <div className="p-3 rounded-2xl bg-amber-100 text-amber-600 bg-opacity-10"><Clock className="w-6 h-6"/></div>
-                     </div>
-                     <div>
-                       <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Próximos Vencimientos</p>
-                       <h3 className="text-2xl font-black text-slate-800 mt-1">Ver Calendario</h3>
-                       <p className="text-[10px] text-slate-500 mt-2 font-medium bg-slate-50 p-2 rounded-lg leading-snug">Detalle semanal abajo</p>
-                     </div>
-                  </div>
-                  {/* KPI DE SALDO A FAVOR */}
-                  <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col justify-between">
-                     <div className="flex justify-between items-start mb-4">
-                       <div className="p-3 rounded-2xl bg-blue-100 text-blue-600 bg-opacity-10"><ThumbsUp className="w-6 h-6"/></div>
-                     </div>
-                     <div>
-                       <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Saldo a Favor</p>
-                       <h3 className="text-2xl font-black text-blue-600 mt-1">{formatCurrency(proveedoresStats.totalCredito)}</h3>
-                       <p className="text-[10px] text-slate-500 mt-2 font-medium bg-slate-50 p-2 rounded-lg leading-snug">Pagos anticipados</p>
-                     </div>
-                  </div>
-                </div>
-
+                  <KPICard title="Deuda Total" value={formatCurrency(proveedoresStats.totalDeuda)} icon={Wallet} color="bg-slate-800" detail="A Pagar" subtext="Saldo Pendiente" />
+                  <KPICard title="Saldo a Favor" value={formatCurrency(proveedoresStats.totalCredito)} icon={ThumbsUp} color="bg-blue-600" detail="Crédito" subtext="Pagos anticipados" />
+                  <KPICard title="Vencido" value={formatCurrency(proveedoresStats.vencido)} icon={AlertOctagon} color="bg-red-600" detail="Urgente" subtext="Deuda vencida" />
+               </div>
+               {/* Gráficos de proveedores (Top Deudores y Calendario) */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[400px] overflow-hidden">
                     <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><Briefcase size={16}/> Top Deudores</h3>
                     <div className="space-y-3">
                       {proveedoresStats.topDeudores.map((p, i) => (
                         <div key={i} className="flex items-center justify-between p-3 hover:bg-slate-50 rounded-xl transition-colors border-b border-slate-50 last:border-0">
-                          <div className="flex items-center gap-3">
-                            <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center font-black text-slate-500 text-xs">{p.nombre.substring(0,2).toUpperCase()}</div>
-                            <div>
-                              <p className="font-bold text-sm text-slate-700">{p.nombre}</p>
-                            </div>
-                          </div>
+                          <p className="font-bold text-sm text-slate-700">{p.nombre}</p>
                           <p className="font-black text-slate-800">{formatCurrency(p.saldo)}</p>
                         </div>
                       ))}
@@ -725,7 +727,11 @@ const App = () => {
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                           <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} />
                           <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '16px', border: 'none'}} formatter={(value) => formatCurrency(value)} />
-                          <Bar dataKey="deuda" fill="#ef4444" radius={[6, 6, 6, 6]} barSize={40} />
+                          <Bar dataKey="deuda" fill="#ef4444" radius={[6, 6, 6, 6]} barSize={40} >
+                             {proveedoresStats.vencimientosSemana.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.fill} />
+                             ))}
+                          </Bar>
                         </BarChart>
                       </ResponsiveContainer>
                    </div>
@@ -825,7 +831,7 @@ const App = () => {
             {proveedoresSubTab === 'operaciones' && (
               <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
                  <div className="flex justify-between items-center mb-6">
-                  {/* EASTER EGG TRIGGER: Doble Clic en el Título abre importación de Facturas */}
+                  {/* EASTER EGG TRIGGER */}
                   <div className="flex items-center gap-4">
                     <h3 
                       onDoubleClick={() => setShowInvoiceImportModal(true)}
