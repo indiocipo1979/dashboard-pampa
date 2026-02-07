@@ -13,8 +13,10 @@ import { getAuth, signInAnonymously } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, updateDoc, doc, query, orderBy } from 'firebase/firestore';
 
 /**
- * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v7.3 (RESTAURADO COMPLETO)
- * Recuperado: Gauges (Relojes), Carga de Factura con Pago, Exportación, Importación.
+ * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v8.5 (RESTAURADO)
+ * - Relojes (Gauges) visibles.
+ * - Carga de Facturas con Pago Inicial incluido.
+ * - Conexión Vercel OK.
  */
 
 // --- CONFIGURACIÓN FIREBASE OFUSCADA ---
@@ -93,7 +95,6 @@ const KPICard = ({ title, value, icon: Icon, color, detail, subtext }) => {
 };
 
 const GaugeCard = ({ title, value, max = 100, type = 'higherIsBetter', suffix = '' }) => {
-  // Fix NaN: Si value es null/undefined, usa 0
   const numValue = Math.max(0, Math.min(parseFloat(value) || 0, max));
   const rotation = -90 + ((numValue / max) * 180);
   const colors = ['#ef4444', '#f59e0b', '#10b981']; 
@@ -411,10 +412,11 @@ const App = () => {
       const debt = total - paid;
       
       let computedStatus = 'Pendiente';
+      // LÓGICA DE ESTADOS:
       if (debt <= 0.5 && debt >= -0.5) {
          computedStatus = 'Pagado'; 
       } else if (debt < -0.5) {
-         computedStatus = 'A Favor';
+         computedStatus = 'A Favor'; // Pagó de más
       } else if (paid > 0) {
          computedStatus = 'Parcial';
       }
@@ -422,6 +424,7 @@ const App = () => {
       return { ...f, total, debt, computedStatus };
     });
 
+    // Sumamos solo deudas positivas
     const totalDeuda = facturasCalculadas.filter(f => f.debt > 0.5).reduce((acc, f) => acc + f.debt, 0);
     const totalCredito = facturasCalculadas.filter(f => f.debt < -0.5).reduce((acc, f) => acc + Math.abs(f.debt), 0);
     const vencido = facturasCalculadas.filter(f => f.debt > 0.5 && new Date(f.dueDate) < new Date()).reduce((acc, f) => acc + f.debt, 0);
@@ -494,21 +497,43 @@ const App = () => {
 
       <main className="max-w-7xl mx-auto px-8 mt-10 space-y-10 animate-fade-in">
         
-        {/* --- VISTA ECONÓMICA --- */}
-        {userRole === 'gerente' && currentTab === 'economico' && economicStats && (
-          <>
-             {/* Filtros Económicos */}
-             <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 mb-6">
-                <div className="flex items-center gap-3 mb-4 pl-2">
-                  <div className="bg-amber-100 p-2 rounded-xl text-amber-600"><Sliders size={20} /></div>
-                  <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Panel de Control: {currentTab.toUpperCase()}</h3>
+        {/* FILTROS COMUNES */}
+        {userRole === 'gerente' && currentTab !== 'proveedores' && (
+          <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+            <div className="flex items-center gap-3 mb-4 pl-2">
+              <div className="bg-amber-100 p-2 rounded-xl text-amber-600"><Sliders size={20} /></div>
+              <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Panel de Control: {currentTab.toUpperCase()}</h3>
+            </div>
+            <div className="flex flex-wrap gap-6">
+              {currentTab === 'economico' && (
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-xs font-black text-slate-400 uppercase mb-2 ml-1">Sucursal</label>
+                  <div className="relative">
+                    <Store className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                    <select className="w-full bg-slate-50 hover:bg-slate-100 transition-colors px-12 py-4 rounded-2xl font-black text-slate-700 uppercase outline-none appearance-none" value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)}>
+                      {branches.map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                    <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={20} />
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-6">
-                  <div className="flex-1 min-w-[200px]"><label className="block text-xs font-black text-slate-400 uppercase mb-2 ml-1">Sucursal</label><div className="relative"><Store className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><select className="w-full bg-slate-50 hover:bg-slate-100 transition-colors px-12 py-4 rounded-2xl font-black text-slate-700 uppercase outline-none appearance-none" value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)}>{branches.map(b => <option key={b} value={b}>{b}</option>)}</select><ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={20} /></div></div>
-                  <div className="flex-1 min-w-[200px]"><label className="block text-xs font-black text-slate-400 uppercase mb-2 ml-1">Período</label><div className="relative"><Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><select className="w-full bg-slate-50 hover:bg-slate-100 transition-colors px-12 py-4 rounded-2xl font-black text-slate-700 uppercase outline-none appearance-none" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>{months.map(m => (<option key={m} value={m}>{formatPeriod(m)}</option>))}</select><ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={20} /></div></div>
+              )}
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-xs font-black text-slate-400 uppercase mb-2 ml-1">Período</label>
+                <div className="relative">
+                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                  <select className="w-full bg-slate-50 hover:bg-slate-100 transition-colors px-12 py-4 rounded-2xl font-black text-slate-700 uppercase outline-none appearance-none" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
+                    {months.map(m => (<option key={m} value={m}>{formatPeriod(m)}</option>))}
+                  </select>
+                  <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={20} />
                 </div>
-             </div>
+              </div>
+            </div>
+          </div>
+        )}
 
+        {/* --- VISTA ECONÓMICA --- */}
+        {currentTab === 'economico' && economicStats && (
+          <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               <KPICard title="Ventas Netas" value={formatCurrency(economicStats.ventasNetas)} icon={TrendingUp} color="bg-blue-600" detail="Ingresos Reales" />
               <KPICard title="Punto de Equilibrio" value={formatCurrency(economicStats.puntoEquilibrio)} icon={Scale} color="bg-purple-500" detail="Meta Mensual" />
@@ -613,8 +638,8 @@ const App = () => {
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} />
                   <YAxis hide />
-                  <Tooltip cursor={{fill: 'transparent'}} content={({ active, payload }) => { 
-                    if (active && payload && payload.length) {
+                  <Tooltip cursor={{fill: 'transparent'}} content={({ payload }) => { 
+                    if (payload && payload.length) {
                       const data = payload[0].payload;
                       return (
                         <div className="bg-white p-4 rounded-xl shadow-lg border">
@@ -640,7 +665,7 @@ const App = () => {
           </>
         )}
 
-        {/* --- VISTA PROVEEDORES (NUEVO) --- */}
+        {/* --- VISTA PROVEEDORES --- */}
         {currentTab === 'proveedores' && (
           <div className="space-y-6">
             <div className="flex gap-4 mb-4">
