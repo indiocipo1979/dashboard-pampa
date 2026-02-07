@@ -13,8 +13,11 @@ import { getAuth, signInAnonymously } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, updateDoc, doc, query, orderBy } from 'firebase/firestore';
 
 /**
- * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL RESTAURADO
- * Versión que recupera los Gauges y la compatibilidad con datos históricos.
+ * FIAMBRERIAS PAMPA - DASHBOARD INTEGRAL v9.0 (RESCATE)
+ * Incluye:
+ * 1. Mounting Seguro (evita pantalla blanca al inicio).
+ * 2. Error Boundary (atrapa errores sin romper toda la app).
+ * 3. Funciones v7.3 (Gauges, Importación, Exportación).
  */
 
 // --- CONFIGURACIÓN FIREBASE OFUSCADA ---
@@ -30,10 +33,15 @@ const firebaseConfig = {
   appId: "1:303967063415:web:14aafc465de7904b5b2572"
 };
 
-// Inicialización
-const appFirebase = initializeApp(firebaseConfig);
-const auth = getAuth(appFirebase);
-const db = getFirestore(appFirebase);
+// Inicialización Segura
+let appFirebase, auth, db;
+try {
+  appFirebase = initializeApp(firebaseConfig);
+  auth = getAuth(appFirebase);
+  db = getFirestore(appFirebase);
+} catch (e) {
+  console.error("Error inicializando Firebase:", e);
+}
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
 const LOGO_URL = "https://raw.githubusercontent.com/indiocipo1979/dashboard-pampa/813294c2178aefbd20bf295d6968254b5d248790/logo_pampa.png";
@@ -74,6 +82,8 @@ const formatPeriod = (periodStr) => {
     return `${monthName.charAt(0).toUpperCase() + monthName.slice(1)} ${year}`;
   } catch (error) { return periodStr; }
 };
+
+const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(val);
 
 // Componentes UI
 const KPICard = ({ title, value, icon: Icon, color, detail, subtext }) => {
@@ -831,7 +841,7 @@ const App = () => {
             {proveedoresSubTab === 'operaciones' && (
               <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
                  <div className="flex justify-between items-center mb-6">
-                  {/* EASTER EGG TRIGGER */}
+                  {/* EASTER EGG TRIGGER: Doble Clic en el Título abre importación de Facturas */}
                   <div className="flex items-center gap-4">
                     <h3 
                       onDoubleClick={() => setShowInvoiceImportModal(true)}
@@ -1004,8 +1014,11 @@ const App = () => {
 };
 
 const mockData = [{ Mes: '2024-01', Sucursal: 'Centro', Concepto: 'Ingreso', Subconcepto: 'Efectivo', Monto: 100000 }];
-const root = createRoot(document.getElementById('root'));
-root.render(<App />);
+const container = document.getElementById('root');
+if (container) {
+  const root = createRoot(container);
+  root.render(<App />);
+}
 
 export default App;
 // --- ESTILOS INYECTADOS ---
