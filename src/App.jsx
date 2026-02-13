@@ -3,7 +3,7 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, ComposedChart, ReferenceLine
 } from 'recharts';
 import { 
-  LayoutDashboard, TrendingUp, DollarSign, Percent, Store, Calendar, RefreshCcw, LogOut, ChevronRight, ChevronLeft, FileText, ArrowRight, Wallet, AlertTriangle, CheckCircle, HelpCircle, Activity, Scale, Filter, BarChart2, PieChart as PieIcon, Sliders, Banknote, Users, ArrowLeftRight, CreditCard, PiggyBank, Landmark, Briefcase, PlusCircle, Clock, AlertOctagon, Search, Trash2, Edit, Save, X, UserCog, User, Upload, Loader, Download, MinusCircle, ThumbsUp, Eye, List
+  LayoutDashboard, TrendingUp, DollarSign, Store, Calendar, RefreshCcw, LogOut, ChevronRight, ChevronLeft, FileText, ArrowRight, Wallet, AlertTriangle, CheckCircle, HelpCircle, Activity, Scale, Filter, BarChart2, PieChart as PieIcon, Sliders, Banknote, Users, ArrowLeftRight, CreditCard, PiggyBank, Landmark, Briefcase, PlusCircle, Clock, AlertOctagon, Search, Trash2, Edit, Save, X, UserCog, User, Upload, Loader, Download, MinusCircle, ThumbsUp, Eye, List
 } from 'lucide-react';
 
 // FIREBASE IMPORTS
@@ -1653,7 +1653,7 @@ const App = () => {
                   {/* KPI DE IVA COMPRAS DEL MES ACTUAL */}
                   <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col justify-between">
                      <div className="flex justify-between items-start mb-4">
-                       <div className="p-3 rounded-2xl bg-purple-100 text-purple-600 bg-opacity-10"><Percent className="w-6 h-6"/></div>
+                       <div className="p-3 rounded-2xl bg-purple-100 text-purple-600 bg-opacity-10"><DollarSign className="w-6 h-6"/></div>
                      </div>
                      <div>
                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">IVA Compras Mes</p>
