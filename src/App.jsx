@@ -5,7 +5,7 @@ import {
 import { 
   LayoutDashboard, TrendingUp, DollarSign, Store, Calendar, RefreshCcw, LogOut, ChevronRight, ChevronLeft, FileText, ArrowRight, Wallet, AlertTriangle, CheckCircle, HelpCircle, Activity, Scale, Filter, BarChart2, PieChart as PieIcon, Sliders, Banknote, Users, ArrowLeftRight, CreditCard, PiggyBank, Landmark, Briefcase, PlusCircle, Clock, AlertOctagon, Search, Trash2, Edit, Save, X, UserCog, User, Upload, Loader, Download, MinusCircle, ThumbsUp, Eye, List
 } from 'lucide-react';
-import GaugeKPI from './components/GaugeKPI';
+import GaugeKPIRecharts from './components/GaugeKPIRecharts';
 
 // FIREBASE IMPORTS
 import { initializeApp } from 'firebase/app';
@@ -2076,10 +2076,10 @@ const App = () => {
               <KPICard title="EBITDA" value={formatCurrency(economicStats.ebitda)} icon={DollarSign} color="bg-emerald-600" detail="Resultado" valueClass={economicStats.ebitda < 0 ? "text-red-600" : "text-emerald-600"} />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <GaugeKPI label="Margen Bruto %" value={Number.isFinite(economicStats.margenBrutoPct) ? Math.max(0, economicStats.margenBrutoPct) : 0} units="%" max={70} green={50} yellow={30} />
-              <GaugeKPI label="Salud del Margen EBITDA" value={Number.isFinite(economicStats.margenPct) ? Math.max(0, economicStats.margenPct) : 0} units="%" max={30} green={20} yellow={10} />
-              <GaugeKPI label="Cobertura Punto de Equilibrio" value={economicStats.puntoEquilibrio > 0 && Number.isFinite(economicStats.ventasNetas) && Number.isFinite(economicStats.puntoEquilibrio) ? Math.max(0, (economicStats.ventasNetas / economicStats.puntoEquilibrio) * 100) : 0} units="%" max={200} green={120} yellow={80} />
-              <GaugeKPI label="Peso Gastos Fijos s/Venta" value={Number.isFinite(economicStats.pesoGastosFijos) ? Math.max(0, economicStats.pesoGastosFijos) : 0} units="%" max={60} green={40} yellow={25} />
+              <GaugeKPIRecharts label="Margen Bruto %" value={Number.isFinite(economicStats.margenBrutoPct) ? Math.max(0, economicStats.margenBrutoPct) : 0} units="%" max={70} green={50} yellow={30} />
+              <GaugeKPIRecharts label="Salud del Margen EBITDA" value={Number.isFinite(economicStats.margenPct) ? Math.max(0, economicStats.margenPct) : 0} units="%" max={30} green={20} yellow={10} />
+              <GaugeKPIRecharts label="Cobertura Punto de Equilibrio" value={economicStats.puntoEquilibrio > 0 && Number.isFinite(economicStats.ventasNetas) && Number.isFinite(economicStats.puntoEquilibrio) ? Math.max(0, (economicStats.ventasNetas / economicStats.puntoEquilibrio) * 100) : 0} units="%" max={200} green={120} yellow={80} />
+              <GaugeKPIRecharts label="Peso Gastos Fijos s/Venta" value={Number.isFinite(economicStats.pesoGastosFijos) ? Math.max(0, economicStats.pesoGastosFijos) : 0} units="%" max={60} green={40} yellow={25} />
             </div>
             <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
