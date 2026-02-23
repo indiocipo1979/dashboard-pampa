@@ -24,10 +24,10 @@ const DonutKPI = ({ value = 0, max = 100, label = "KPI", units = "%", green = 70
             pathColor,
             textColor: value < 0 ? '#dc2626' : '#0f172a',
             trailColor: '#f1f5f9',
-            textSize: '1.7rem',
+            textSize: '1.15rem',
             pathTransitionDuration: 0.5,
-            fontFamily: 'inherit',
-            fontWeight: 900,
+            fontFamily: 'Montserrat, Arial, sans-serif',
+            fontWeight: 800,
           })}
         />
       </div>
