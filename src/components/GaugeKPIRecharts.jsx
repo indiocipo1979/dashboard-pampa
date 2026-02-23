@@ -25,15 +25,15 @@ const GaugeKPIRecharts = ({ value = 0, max = 100, label = "KPI", units = "%", gr
   const endAngle = -45;
 
   return (
-    <div className="w-[100px] sm:w-[120px] mx-auto text-center flex flex-col items-center">
-      <div className="relative w-full flex items-center justify-center" style={{ height: 70 }}>
-        <PieChart width={100} height={70}>
+    <div className="w-[140px] sm:w-[160px] mx-auto text-center flex flex-col items-center">
+      <div className="relative w-full flex items-center justify-center" style={{ height: 80 }}>
+        <PieChart width={140} height={80}>
           <Pie
             data={data}
             startAngle={startAngle}
             endAngle={endAngle}
-            innerRadius={30}
-            outerRadius={45}
+            innerRadius={38}
+            outerRadius={60}
             dataKey="value"
             stroke="none"
             isAnimationActive={false}
@@ -43,12 +43,12 @@ const GaugeKPIRecharts = ({ value = 0, max = 100, label = "KPI", units = "%", gr
             ))}
           </Pie>
         </PieChart>
-        <span className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 font-black font-sans text-base sm:text-lg md:text-xl leading-none tracking-tight select-none whitespace-nowrap ${isNegative ? 'text-red-600' : 'text-slate-900'}`}
-          style={{ maxWidth: '80%', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {isNegative && <span className="mr-0.5">-</span>}{displayValue}
+        <span className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 font-black font-sans text-[1.1rem] sm:text-[1.25rem] md:text-[1.5rem] leading-none tracking-tight select-none whitespace-nowrap ${isNegative ? 'text-red-600' : 'text-slate-900'}`}
+          style={{ maxWidth: '95%', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {isNegative ? '-' : ''}{displayValue}
         </span>
       </div>
-      <div className="mt-1 font-black text-[12px] sm:text-[13px] text-slate-700 uppercase tracking-wide leading-tight text-center break-words max-w-[90px] sm:max-w-[110px]">{label}</div>
+      <div className="mt-1 font-black text-[12px] sm:text-[13px] text-slate-700 uppercase tracking-wide leading-tight text-center break-words max-w-[120px] sm:max-w-[140px]">{label}</div>
     </div>
   );
 };
