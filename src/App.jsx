@@ -5,6 +5,7 @@ import {
 import { 
   LayoutDashboard, TrendingUp, DollarSign, Store, Calendar, RefreshCcw, LogOut, ChevronRight, ChevronLeft, FileText, ArrowRight, Wallet, AlertTriangle, CheckCircle, HelpCircle, Activity, Scale, Filter, BarChart2, PieChart as PieIcon, Sliders, Banknote, Users, ArrowLeftRight, CreditCard, PiggyBank, Landmark, Briefcase, PlusCircle, Clock, AlertOctagon, Search, Trash2, Edit, Save, X, UserCog, User, Upload, Loader, Download, MinusCircle, ThumbsUp, Eye, List
 } from 'lucide-react';
+import GaugeKPI from './components/GaugeKPI';
 
 // FIREBASE IMPORTS
 import { initializeApp } from 'firebase/app';
@@ -2075,19 +2076,19 @@ const App = () => {
               <KPICard title="EBITDA" value={formatCurrency(economicStats.ebitda)} icon={DollarSign} color="bg-emerald-600" detail="Resultado" valueClass={economicStats.ebitda < 0 ? "text-red-600" : "text-emerald-600"} />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <GaugeCard title="Margen Bruto %" value={formatPercent(economicStats.margenBrutoPct, 1)} suffix="%" max={70} type="higherIsBetter" />
-              <GaugeCard title="Salud del Margen EBITDA" value={formatPercent(economicStats.margenPct, 1)} suffix="%" max={30} type="higherIsBetter" />
-              <GaugeCard title="Cobertura Punto de Equilibrio" value={economicStats.puntoEquilibrio > 0 ? formatPercent((economicStats.ventasNetas / economicStats.puntoEquilibrio) * 100, 0) : formatPercent(0, 0)} suffix="%" max={200} type="higherIsBetter" />
-              <GaugeCard title="Peso Gastos Fijos s/Venta" value={formatPercent(economicStats.pesoGastosFijos, 1)} suffix="%" max={60} />
+              <GaugeKPI label="Margen Bruto %" value={Number.isFinite(economicStats.margenBrutoPct) ? Math.max(0, economicStats.margenBrutoPct) : 0} units="%" max={70} green={50} yellow={30} />
+              <GaugeKPI label="Salud del Margen EBITDA" value={Number.isFinite(economicStats.margenPct) ? Math.max(0, economicStats.margenPct) : 0} units="%" max={30} green={20} yellow={10} />
+              <GaugeKPI label="Cobertura Punto de Equilibrio" value={economicStats.puntoEquilibrio > 0 && Number.isFinite(economicStats.ventasNetas) && Number.isFinite(economicStats.puntoEquilibrio) ? Math.max(0, (economicStats.ventasNetas / economicStats.puntoEquilibrio) * 100) : 0} units="%" max={200} green={120} yellow={80} />
+              <GaugeKPI label="Peso Gastos Fijos s/Venta" value={Number.isFinite(economicStats.pesoGastosFijos) ? Math.max(0, economicStats.pesoGastosFijos) : 0} units="%" max={60} green={40} yellow={25} />
             </div>
             <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
                 <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest flex items-center gap-2"><List size={16}/> Ticket Promedio</h3>
-                <div className="flex items-center gap-2 flex-wrap md:justify-end">
+                <div className="flex flex-col xs:flex-row items-stretch xs:items-center gap-2 flex-wrap md:justify-end w-full md:w-auto">
                   <button
                     type="button"
                     onClick={() => setShowSalesImportModal(true)}
-                    className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200 flex items-center gap-1.5"
+                    className="w-full xs:w-auto px-3 py-1.5 rounded-xl text-[10px] font-black uppercase bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200 flex items-center justify-center gap-1.5"
                   >
                     <Upload size={12} /> Subir
                   </button>
@@ -2095,7 +2096,7 @@ const App = () => {
                     type="button"
                     onClick={handleDeleteSelectedSalesStats}
                     disabled={deletingSalesImport || !selectedSalesStats}
-                    className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                    className="w-full xs:w-auto px-3 py-1.5 rounded-xl text-[10px] font-black uppercase bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
                   >
                     {deletingSalesImport ? <Loader className="animate-spin" size={12} /> : <Trash2 size={12} />} Eliminar
                   </button>
