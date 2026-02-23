@@ -3,31 +3,35 @@ import { CircularProgressbar, buildStyles } from "react-circular-progressbar";
 import "react-circular-progressbar/dist/styles.css";
 
 const DonutKPI = ({ value = 0, max = 100, label = "KPI", units = "%", green = 70, yellow = 40 }) => {
-  const absValue = Math.abs(value);
+  // Permitir negativos y formatear igual que el resto de la plantilla
   let pathColor = "#10b981"; // verde
+  const absValue = Math.abs(value);
   if (absValue < yellow) pathColor = "#ef4444"; // rojo
   else if (absValue < green) pathColor = "#f59e0b"; // amarillo
 
-  const displayValue = `${value < 0 ? '-' : ''}${absValue.toLocaleString("es-AR", { maximumFractionDigits: 1, minimumFractionDigits: 1 })}${units}`;
+  // Formato consistente con el resto de la plantilla
+  const displayValue = `${value < 0 ? '-' : ''}${absValue.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}${units}`;
 
   return (
-    <div className="w-[90px] sm:w-[110px] mx-auto flex flex-col items-center">
+    <div className="w-[130px] sm:w-[160px] mx-auto flex flex-col items-center">
       <div className="w-full">
         <CircularProgressbar
-          value={absValue}
+          value={absValue > max ? max : absValue}
           maxValue={max}
           text={displayValue}
-          strokeWidth={10}
+          strokeWidth={12}
           styles={buildStyles({
             pathColor,
             textColor: value < 0 ? '#dc2626' : '#0f172a',
             trailColor: '#f1f5f9',
-            textSize: '1.1rem',
+            textSize: '1.7rem',
             pathTransitionDuration: 0.5,
+            fontFamily: 'inherit',
+            fontWeight: 900,
           })}
         />
       </div>
-      <div className="mt-2 font-black text-[12px] sm:text-[13px] text-slate-700 uppercase tracking-wide leading-tight text-center break-words max-w-[90px] sm:max-w-[110px]">{label}</div>
+      <div className="mt-2 font-black text-[13px] sm:text-[15px] text-slate-700 uppercase tracking-wide leading-tight text-center break-words max-w-[120px] sm:max-w-[140px]">{label}</div>
     </div>
   );
 };
