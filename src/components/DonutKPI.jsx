@@ -12,7 +12,8 @@ const DonutKPI = ({ value = 0, max = 100, label = "KPI", units = "%", green = 70
     else if (absValue < 50) pathColor = "#f59e0b"; // amarillo
     else pathColor = "#10b981"; // verde
   } else if (label.toLowerCase().includes("ebitda")) {
-    if (absValue < 10) pathColor = "#ef4444"; // rojo
+    if (value < 0) pathColor = "#ef4444"; // rojo si es negativo
+    else if (absValue < 10) pathColor = "#ef4444"; // rojo
     else if (absValue < 15) pathColor = "#f59e0b"; // amarillo
     else pathColor = "#10b981"; // verde
   } else if (label.toLowerCase().includes("cobertura punto de equilibrio")) {
