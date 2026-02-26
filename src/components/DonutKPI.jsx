@@ -6,8 +6,26 @@ const DonutKPI = ({ value = 0, max = 100, label = "KPI", units = "%", green = 70
   // Permitir negativos y formatear igual que el resto de la plantilla
   let pathColor = "#10b981"; // verde
   const absValue = Math.abs(value);
-  if (absValue < yellow) pathColor = "#ef4444"; // rojo
-  else if (absValue < green) pathColor = "#f59e0b"; // amarillo
+  // Rango: rojo < 30, amarillo 30-50, verde > 50
+  if (label.toLowerCase().includes("margen bruto")) {
+    if (absValue < 30) pathColor = "#ef4444"; // rojo
+    else if (absValue < 50) pathColor = "#f59e0b"; // amarillo
+    else pathColor = "#10b981"; // verde
+  } else if (label.toLowerCase().includes("ebitda")) {
+    if (absValue < 10) pathColor = "#ef4444"; // rojo
+    else if (absValue < 15) pathColor = "#f59e0b"; // amarillo
+    else pathColor = "#10b981"; // verde
+  } else if (label.toLowerCase().includes("cobertura punto de equilibrio")) {
+    if (absValue >= 100) pathColor = "#10b981"; // verde
+    else pathColor = "#ef4444"; // rojo
+  } else if (label.toLowerCase().includes("peso gastos fijos s/venta")) {
+    if (absValue < 20) pathColor = "#10b981"; // verde
+    else if (absValue < 25) pathColor = "#f59e0b"; // amarillo
+    else pathColor = "#ef4444"; // rojo
+  } else {
+    if (absValue < yellow) pathColor = "#ef4444"; // rojo
+    else if (absValue < green) pathColor = "#f59e0b"; // amarillo
+  }
 
   // Formato consistente con el resto de la plantilla
   const displayValue = `${value < 0 ? '-' : ''}${absValue.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}${units}`;

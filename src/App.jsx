@@ -2077,7 +2077,7 @@ const App = () => {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               <DonutKPI label="Margen Bruto %" value={economicStats.margenBrutoPct} units="%" max={70} green={50} yellow={30} />
-              <DonutKPI label="Salud del Margen EBITDA" value={economicStats.margenPct} units="%" max={30} green={20} yellow={10} />
+              <DonutKPI label="Margen EBITDA %" value={economicStats.margenPct} units="%" max={30} green={20} yellow={10} />
               <DonutKPI label="Cobertura Punto de Equilibrio" value={economicStats.puntoEquilibrio > 0 ? (economicStats.ventasNetas / economicStats.puntoEquilibrio) * 100 : 0} units="%" max={200} green={120} yellow={80} />
               <DonutKPI label="Peso Gastos Fijos s/Venta" value={economicStats.pesoGastosFijos} units="%" max={60} green={40} yellow={25} />
             </div>

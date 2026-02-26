@@ -5,8 +5,26 @@ import "react-circular-progressbar/dist/styles.css";
 const GaugeKPI = ({ value = 0, label = "KPI", min = 0, max = 100, units = "%", green = 70, yellow = 40 }) => {
   // Determinar color según valor
   let pathColor = "#3fc380"; // verde
-  if (value < yellow) pathColor = "#e74c3c"; // rojo
-  else if (value < green) pathColor = "#f7ca18"; // amarillo
+  // Rango: rojo < 30, amarillo 30-50, verde > 50 para margen bruto
+  if (label.toLowerCase().includes("margen bruto")) {
+    if (value < 30) pathColor = "#e74c3c"; // rojo
+    else if (value < 50) pathColor = "#f7ca18"; // amarillo
+    else pathColor = "#3fc380"; // verde
+  } else if (label.toLowerCase().includes("ebitda")) {
+    if (value < 10) pathColor = "#e74c3c"; // rojo
+    else if (value < 15) pathColor = "#f7ca18"; // amarillo
+    else pathColor = "#3fc380"; // verde
+  } else if (label.toLowerCase().includes("cobertura punto de equilibrio")) {
+    if (value >= 100) pathColor = "#3fc380"; // verde
+    else pathColor = "#e74c3c"; // rojo
+  } else if (label.toLowerCase().includes("peso gastos fijos s/venta")) {
+    if (value < 20) pathColor = "#3fc380"; // verde
+    else if (value < 25) pathColor = "#f7ca18"; // amarillo
+    else pathColor = "#e74c3c"; // rojo
+  } else {
+    if (value < yellow) pathColor = "#e74c3c"; // rojo
+    else if (value < green) pathColor = "#f7ca18"; // amarillo
+  }
 
   // Formatear valor como porcentaje con 1 decimal
   const formattedValue = `${Number(value).toLocaleString("es-AR", { maximumFractionDigits: 1, minimumFractionDigits: 1 })}${units}`;
