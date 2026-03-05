@@ -247,8 +247,16 @@ const GaugeCard = ({ title, value, max = 100, suffix = '' }) => {
 };
 
 const TabButton = ({ active, label, icon: Icon, onClick }) => (
-  <button onClick={onClick} className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${active ? 'bg-slate-800 text-white shadow-lg shadow-slate-300 transform scale-105' : 'bg-white text-slate-400 hover:bg-slate-50'}`}>
-    <Icon size={18} /> {label}
+  <button
+    type="button"
+    onClick={onClick}
+    className={`flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-xs md:text-base transition-all duration-200
+      ${active ? 'bg-teal-600 text-white shadow-md' : 'bg-white text-slate-700'}
+      w-full sm:w-auto min-w-[100px] md:min-w-[120px]`}
+    style={{ minHeight: 40 }}
+  >
+    {Icon && <Icon size={18} />}
+    <span>{label}</span>
   </button>
 );
 
@@ -279,8 +287,6 @@ const App = () => {
   const [editingProv, setEditingProv] = useState(null);
   const [savingProv, setSavingProv] = useState(false); // Used in render, ensuring state exists
   const [saving, setSaving] = useState(false);
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [importText, setImportText] = useState('');
   const [savingFactura, setSavingFactura] = useState(false);
   const [showInvoiceImportModal, setShowInvoiceImportModal] = useState(false);
   const [invoiceImportText, setInvoiceImportText] = useState('');
@@ -482,18 +488,6 @@ const App = () => {
       else await addDoc(collection(db, 'proveedores'), newProv);
       setShowProvModal(false); setEditingProv(null); fetchData('proveedores');
     } catch (err) { alert("Error al guardar"); } finally { setSavingProv(false); }
-  };
-
-  const handleBulkImport = async () => {
-    if (!db || !importText.trim()) return;
-    setSavingProv(true);
-    const lines = importText.split('\n');
-    let count = 0;
-    for (let line of lines) {
-       const p = line.split(',');
-       if(p[0]) { try { await addDoc(collection(db, 'proveedores'), { name: p[0].trim(), phone: p[1]||'', cuit: p[2]||'', address: p[3]||'' }); count++; } catch(e){} }
-    }
-    setSavingProv(false); setShowImportModal(false); setImportText(''); fetchData('proveedores'); alert(`Importados: ${count}`);
   };
 
   const handleBulkImportFacturas = async (rawText) => {
@@ -1398,7 +1392,7 @@ const App = () => {
     // Configuración para Excel en Español (Latam)
     const SEPARATOR = ";"; 
     
-    // Helper para formatear números para Excel (1000.50 -> 1000,50)
+    // Helper para formateo de números para Excel (1000.50 -> 1000,50)
     // BLINDAJE: Si es NaN, devuelve 0,00
     const fmtNum = (num) => {
         if (!num && num !== 0) return "0,00";
@@ -1997,12 +1991,12 @@ const App = () => {
   return (
     <div className="min-h-screen bg-[#FDFDFD] pb-20 font-sans text-slate-900">
       <Styles />
-      <nav className="bg-white border-b border-slate-100 h-20 px-8 flex items-center justify-between sticky top-0 z-50">
+      <nav className="bg-white border-b border-slate-100 px-4 sm:px-8 py-3 lg:py-0 min-h-20 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 sticky top-0 z-50">
         <div className="flex items-center gap-4">
           <div className="h-10 w-10 rounded-xl bg-white shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden"><img src={LOGO_URL} alt="Logo" className="h-full w-full object-contain" /></div>
           <h1 className="font-black text-lg tracking-tighter uppercase leading-none hidden sm:block">{userRole === 'gerente' ? 'PANEL GERENCIAL' : 'MÓDULO DE CARGA'}</h1>
         </div>
-        <div className="flex bg-slate-100 p-1 rounded-2xl">
+        <div className="flex bg-slate-100 p-1 rounded-2xl flex-wrap justify-center gap-2 md:gap-4 w-full lg:w-auto">
           {userRole === 'gerente' && (
             <>
               <TabButton active={currentTab === 'economico'} label="Económico" icon={BarChart2} onClick={() => setCurrentTab('economico')} />
@@ -2011,12 +2005,12 @@ const App = () => {
           )}
           <TabButton active={currentTab === 'proveedores'} label="Proveedores" icon={Briefcase} onClick={() => setCurrentTab('proveedores')} />
         </div>
-        <div className="flex gap-4 items-center">
-          <span className="text-[10px] font-bold uppercase bg-slate-100 px-3 py-1 rounded-full text-slate-500 flex items-center gap-1">
+        <div className="flex gap-2 sm:gap-4 items-center w-full lg:w-auto justify-end">
+          <span className="hidden sm:flex text-[10px] font-bold uppercase bg-slate-100 px-3 py-1 rounded-full text-slate-500 items-center gap-1">
              {userRole === 'gerente' ? <UserCog size={14}/> : <User size={14}/>} {userRole}
           </span>
           <button onClick={() => fetchData(currentTab)} className="p-3 bg-slate-50 rounded-2xl hover:bg-slate-100"><RefreshCcw size={20}/></button>
-          <button onClick={() => { setIsLoggedIn(false); setUserRole(null); setShowModuleSelector(false); }} className="bg-slate-900 text-white px-6 py-2.5 rounded-2xl text-xs font-bold">SALIR</button>
+          <button onClick={() => { setIsLoggedIn(false); setUserRole(null); setShowModuleSelector(false); }} className="bg-slate-900 text-white px-4 sm:px-6 py-2.5 rounded-2xl text-[11px] sm:text-xs font-bold">SALIR</button>
         </div>
       </nav>
 
@@ -2028,7 +2022,7 @@ const App = () => {
         </div>
       )}
 
-      <main className="max-w-7xl mx-auto px-8 mt-10 space-y-10 animate-fade-in">
+      <main className="max-w-7xl mx-auto px-4 sm:px-8 mt-6 sm:mt-10 space-y-10 animate-fade-in">
         
         {/* FILTROS COMUNES */}
         {userRole === 'gerente' && currentTab !== 'proveedores' && (
@@ -2075,7 +2069,7 @@ const App = () => {
               <KPICard title="Gastos Fijos" value={formatCurrency(economicStats.totalGastos)} icon={FileText} color="bg-red-600" detail="Estructura" />
               <KPICard title="EBITDA" value={formatCurrency(economicStats.ebitda)} icon={DollarSign} color="bg-emerald-600" detail="Resultado" valueClass={economicStats.ebitda < 0 ? "text-red-600" : "text-emerald-600"} />
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <DonutKPI label="Margen Bruto %" value={economicStats.margenBrutoPct} units="%" max={70} green={50} yellow={30} />
               <DonutKPI label="Margen EBITDA %" value={economicStats.margenPct} units="%" max={30} green={20} yellow={10} />
               <DonutKPI label="Cobertura Punto de Equilibrio" value={economicStats.puntoEquilibrio > 0 ? (economicStats.ventasNetas / economicStats.puntoEquilibrio) * 100 : 0} units="%" max={200} green={120} yellow={80} />
@@ -2252,11 +2246,11 @@ const App = () => {
         {/* --- VISTA PROVEEDORES --- */}
         {currentTab === 'proveedores' && (
           <div className="space-y-6">
-            <div className="flex gap-4 mb-4">
-              <button onClick={() => setProveedoresSubTab('operaciones')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'operaciones' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Carga de Facturas</button>
-              <button onClick={() => setProveedoresSubTab('cuentas')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'cuentas' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Ctas Corrientes</button>
-              <button onClick={() => setProveedoresSubTab('base')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'base' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Base Proveedores</button>
-              {userRole === 'gerente' && <button onClick={() => setProveedoresSubTab('dashboard')} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${proveedoresSubTab === 'dashboard' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500'}`}>Indicadores</button>}
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-3 mb-4 bg-slate-100 p-2 rounded-2xl">
+              <button onClick={() => setProveedoresSubTab('operaciones')} className={`w-full sm:w-auto px-3 sm:px-4 py-2.5 rounded-xl text-[10px] sm:text-xs font-bold uppercase text-center leading-tight transition-colors ${proveedoresSubTab === 'operaciones' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>Carga de Facturas</button>
+              <button onClick={() => setProveedoresSubTab('cuentas')} className={`w-full sm:w-auto px-3 sm:px-4 py-2.5 rounded-xl text-[10px] sm:text-xs font-bold uppercase text-center leading-tight transition-colors ${proveedoresSubTab === 'cuentas' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>Ctas Corrientes</button>
+              <button onClick={() => setProveedoresSubTab('base')} className={`w-full sm:w-auto px-3 sm:px-4 py-2.5 rounded-xl text-[10px] sm:text-xs font-bold uppercase text-center leading-tight transition-colors ${proveedoresSubTab === 'base' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>Base Proveedores</button>
+              {userRole === 'gerente' && <button onClick={() => setProveedoresSubTab('dashboard')} className={`w-full sm:w-auto px-3 sm:px-4 py-2.5 rounded-xl text-[10px] sm:text-xs font-bold uppercase text-center leading-tight transition-colors ${proveedoresSubTab === 'dashboard' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>Indicadores</button>}
             </div>
              
             {/* NUEVA VISTA: CUENTAS CORRIENTES */}
@@ -2574,13 +2568,10 @@ const App = () => {
             {proveedoresSubTab === 'base' && (
               <>
                 <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-                  <div className="flex justify-between items-center mb-6">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
                     <h3 className="font-black text-sm uppercase tracking-widest text-slate-600">Base de Proveedores</h3>
-                    <div className="flex gap-2">
-                        <button className="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-700 flex items-center gap-2" onClick={() => setShowImportModal(true)}>
-                           {savingProv ? <Loader className="animate-spin" size={14}/> : <Upload size={14}/>} Importar Lista
-                        </button>
-                        <button className="bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-600 flex items-center gap-2" onClick={openNewModal}>
+                    <div className="w-full sm:w-auto">
+                        <button className="bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-600 flex items-center justify-center gap-2 w-full sm:w-auto" onClick={openNewModal}>
                            {savingProv ? <Loader className="animate-spin" size={14}/> : <PlusCircle size={14}/>} Agregar
                         </button>
                     </div>
@@ -2641,36 +2632,15 @@ const App = () => {
                     </div>
                   </div>
                 )}
-                 {showImportModal && (
-                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-3xl p-8 w-full max-w-lg shadow-2xl animate-fade-in">
-                      <div className="flex justify-between items-center mb-4">
-                        <h3 className="font-black text-lg text-slate-800 uppercase">Importar Masiva</h3>
-                        <button onClick={() => setShowImportModal(false)} className="p-2 hover:bg-slate-100 rounded-full"><X size={20}/></button>
-                      </div>
-                      <p className="text-xs text-slate-500 mb-4">Copia y pega tu lista de Excel aquí. Formato esperado por línea: <br/><strong>Nombre, Teléfono, CUIT, Dirección</strong></p>
-                      <textarea 
-                        className="w-full h-40 bg-slate-50 p-4 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 mb-4 font-mono"
-                        placeholder="Ejemplo:&#10;Lácteos del Sur, 299123456, 3011111111, Ruta 22&#10;Panificadora, 299654321, 3022222222, Centro"
-                        value={importText}
-                        onChange={(e) => setImportText(e.target.value)}
-                      />
-                      <button onClick={handleBulkImport} disabled={savingProv} className="w-full bg-slate-800 text-white p-3 rounded-xl text-xs font-bold hover:bg-slate-700 flex justify-center items-center gap-2 disabled:opacity-50">
-                          {savingProv ? <Loader className="animate-spin" size={16}/> : <Upload size={16} />} 
-                          {savingProv ? 'Procesando...' : 'Procesar Importación'}
-                      </button>
-                    </div>
-                  </div>
-                )}
               </>
             )}
 
             {proveedoresSubTab === 'operaciones' && (
               <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
                   <div className="flex flex-col gap-6 mb-6">
-                    <div className="flex justify-between items-center">
+                    <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3">
                       {/* EASTER EGG TRIGGER */}
-                      <div className="flex items-center gap-4">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-4">
                         <h3 
                           onDoubleClick={() => setShowInvoiceImportModal(true)}
                           className="font-black text-sm uppercase tracking-widest text-slate-600 cursor-pointer select-none hover:text-slate-800 transition-colors"
@@ -2687,15 +2657,15 @@ const App = () => {
                               });
                               setShowExportModal(true);
                             }} 
-                            className="bg-green-100 text-green-700 px-3 py-1 rounded-lg text-[10px] font-bold uppercase flex items-center gap-1 hover:bg-green-200"
+                            className="bg-green-100 text-green-700 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase flex items-center gap-1 hover:bg-green-200 w-full sm:w-auto justify-center"
                         >
                           <Download size={12} /> Exportar Excel
                         </button>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
                         {/* BOTÓN NUEVO: Cargar Pago (Separado) */}
-                        <button onClick={() => { setEditingPago(null); setShowPagoModal(true); }} className="bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-600 flex items-center gap-2"><Banknote size={14} /> Registrar Pago</button>
-                        <button onClick={() => { setEditingFactura(null); setShowFacturaModal(true); }} className="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-700 flex items-center gap-2"><PlusCircle size={14} /> Cargar Factura</button>
+                        <button onClick={() => { setEditingPago(null); setShowPagoModal(true); }} className="bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-600 flex items-center justify-center gap-2 w-full sm:w-auto"><Banknote size={14} /> Registrar Pago</button>
+                        <button onClick={() => { setEditingFactura(null); setShowFacturaModal(true); }} className="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-700 flex items-center justify-center gap-2 w-full sm:w-auto"><PlusCircle size={14} /> Cargar Factura</button>
                       </div>
                     </div>
 
@@ -2707,7 +2677,7 @@ const App = () => {
                         <select 
                             value={opsFilterProvider} 
                             onChange={e => setOpsFilterProvider(e.target.value)}
-                            className="bg-white p-2.5 rounded-xl text-xs outline-none border border-slate-200 font-bold text-slate-600 min-w-[200px]"
+                          className="bg-white p-2.5 rounded-xl text-xs outline-none border border-slate-200 font-bold text-slate-600 w-full sm:w-auto min-w-0 sm:min-w-[200px]"
                         >
                             <option value="">Todos los Proveedores</option>
                             {proveedores.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -2717,9 +2687,9 @@ const App = () => {
                           value={opsFilterInvoiceNumber}
                           onChange={e => setOpsFilterInvoiceNumber(e.target.value)}
                           placeholder="Nro Factura"
-                          className="bg-white p-2.5 rounded-xl text-xs outline-none border border-slate-200 font-bold text-slate-600 min-w-[160px]"
+                          className="bg-white p-2.5 rounded-xl text-xs outline-none border border-slate-200 font-bold text-slate-600 w-full sm:w-auto min-w-0 sm:min-w-[160px]"
                         />
-                        <div className="flex items-center gap-2 bg-white px-2 py-1 rounded-xl border border-slate-200">
+                        <div className="flex items-center gap-2 bg-white px-2 py-1 rounded-xl border border-slate-200 w-full sm:w-auto justify-between">
                             <label className="text-[10px] font-bold text-slate-400 uppercase">Desde:</label>
                             <input 
                                 type="date" 
@@ -2728,7 +2698,7 @@ const App = () => {
                                 className="bg-transparent p-1.5 text-xs outline-none font-bold text-slate-600 uppercase"
                             />
                         </div>
-                        <div className="flex items-center gap-2 bg-white px-2 py-1 rounded-xl border border-slate-200">
+                        <div className="flex items-center gap-2 bg-white px-2 py-1 rounded-xl border border-slate-200 w-full sm:w-auto justify-between">
                             <label className="text-[10px] font-bold text-slate-400 uppercase">Hasta:</label>
                             <input 
                                 type="date" 
@@ -2740,7 +2710,7 @@ const App = () => {
                         {(opsFilterProvider || opsFilterDateFrom || opsFilterDateTo || opsFilterInvoiceNumber) && (
                             <button 
                             onClick={() => { setOpsFilterProvider(''); setOpsFilterDateFrom(''); setOpsFilterDateTo(''); setOpsFilterInvoiceNumber(''); }} 
-                                className="ml-auto text-red-500 hover:bg-red-50 px-3 py-2 rounded-xl transition-colors text-xs font-bold flex items-center gap-1"
+                            className="w-full sm:w-auto sm:ml-auto text-red-500 hover:bg-red-50 px-3 py-2 rounded-xl transition-colors text-xs font-bold flex items-center justify-center gap-1"
                             >
                                 <X size={14} /> Limpiar
                             </button>
@@ -2843,8 +2813,8 @@ const App = () => {
 
                 {/* PAGINATION CONTROLS */}
                 {opsTableData.totalCount > 0 && (
-                  <div className="flex justify-between items-center mt-4 px-2">
-                    <span className="text-xs text-slate-400 font-bold uppercase">
+                  <div className="flex flex-col sm:flex-row justify-between items-center gap-3 mt-4 px-2">
+                    <span className="text-xs text-slate-400 font-bold uppercase text-center sm:text-left">
                       Mostrando {opsTableData.currentData.length} de {opsTableData.totalCount} registros
                     </span>
                     <div className="flex items-center gap-2">
@@ -2985,7 +2955,7 @@ const App = () => {
                            
                            {/* BLOQUE DE IMPORTES REDISEÑADO (FILA 4) */}
                            <div className="flex flex-col gap-1 md:col-span-2">
-                             <label className="text-[10px] font-black text-slate-800 uppercase ml-1">Importe Final c/ IVA</label>
+                             <label className="text-[10px] font-bold text-slate-800 uppercase ml-1">Importe Final c/ IVA</label>
                              <div className="relative">
                                  <DollarSign size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-800"/>
                                  <input 
@@ -3130,7 +3100,7 @@ const App = () => {
                   <input
                     ref={invoiceFileInputRef}
                     type="file"
-                    accept=".csv,.txt,.tsv"
+                    accept=".csv,.tsv"
                     className="hidden"
                     onChange={handleInvoiceFileSelect}
                   />
