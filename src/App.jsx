@@ -1923,7 +1923,17 @@ const App = () => {
   }, [proveedoresStats, dashboardCalendarMonth]);
 
   const branches = ['Todas', ...new Set(data.map(d => d.Sucursal))].filter(Boolean);
-  const months = ['Acumulado', ...new Set(data.map(d => d.Mes))].filter(Boolean).sort().reverse();
+  const monthsRaw = [...new Set(data.map(d => d.Mes))].filter(Boolean);
+  const monthsSorted = monthsRaw.sort((a, b) => {
+    // "Acumulado" siempre va primero
+    if (a === 'Acumulado') return -1;
+    if (b === 'Acumulado') return 1;
+    const da = parseSmartDate('01 ' + a);
+    const db = parseSmartDate('01 ' + b);
+    if (!da || !db) return 0;
+    return da - db;
+  });
+  const months = ['Acumulado', ...monthsSorted.filter(m => m !== 'Acumulado')];
 
   if (!isLoggedIn) {
     return (
