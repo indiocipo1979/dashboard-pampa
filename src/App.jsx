@@ -2203,7 +2203,7 @@ const App = () => {
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <KPICard title="Resultado Operativo" value={formatCurrency(financialStats.resultadoOperativo)} icon={Activity} color="bg-blue-600" detail="1" subtext="Operaciones del mes" valueClass={financialStats.resultadoOperativo < 0 ? "text-red-600" : "text-slate-800"} />
-              <KPICard title="Caja Comprometida" value={formatCurrency(financialStats.cajaComprometida)} icon={AlertTriangle} color="bg-orange-500" detail="2" subtext="Deuda vieja pagada" valueClass={financialStats.cajaComprometida < 0 ? "text-red-600" : "text-slate-800"} />
+              <KPICard title="Caja Comprometida" value={formatCurrency(financialStats.cajaComprometida)} icon={AlertTriangle} color="bg-orange-500" detail="2" subtext="fondos reservados" valueClass={financialStats.cajaComprometida < 0 ? "text-red-600" : "text-slate-800"} />
               <KPICard title="CAJA LIBRE REAL" value={formatCurrency(financialStats.cajaLibreReal)} icon={Wallet} color={financialStats.cajaLibreReal >= 0 ? "bg-emerald-600" : "bg-red-600"} detail="3" subtext="Operativo + Comprometido" valueClass={financialStats.cajaLibreReal < 0 ? "text-red-600" : "text-slate-800"} />
               <KPICard title="Financiamiento Neto" value={formatCurrency(financialStats.financiamientoNeto)} icon={CreditCard} color={financialStats.financiamientoNeto >= 0 ? "bg-indigo-600" : "bg-red-600"} detail="4" subtext="Préstamos - Pagos" valueClass={financialStats.financiamientoNeto < 0 ? "text-red-600" : "text-slate-800"} />
             </div>
