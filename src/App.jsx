@@ -1486,6 +1486,30 @@ const App = () => {
     };
   }, [data, selectedMonth, currentTab]);
 
+  const financialTrendData = useMemo(() => {
+    if (currentTab !== 'financiero') return [];
+    
+    // Meses únicos reales (excluyendo "Acumulado")
+    const monthsRaw = [...new Set(data.filter(d => d.Mes && d.Mes !== 'Acumulado').map(d => d.Mes))];
+    
+    const sorted = monthsRaw.sort((a, b) => {
+      const da = parseSmartDate('01 ' + a);
+      const db = parseSmartDate('01 ' + b);
+      return (da && db) ? da - db : 0;
+    });
+
+    return sorted.map(m => {
+      const filtered = data.filter(d => d.Mes === m);
+      const calc = (t) => filtered.filter(r => r.Tipo?.toLowerCase().includes(t)).reduce((a,b) => a + (b.Entrada||0) - (b.Salida||0), 0);
+      const cajaRealFinal = calc('operativo') + calc('comprometida') + calc('personal') + calc('financiamiento');
+      return {
+        name: formatPeriod(m),
+        valor: cajaRealFinal,
+        rawMonth: m
+      };
+    });
+  }, [data, currentTab]);
+
   const chartData = useMemo(() => {
     if (currentTab === 'economico' && economicStats) {
       const waterfall = [
@@ -2212,43 +2236,67 @@ const App = () => {
               <KPICard title="Caja Real Final" value={formatCurrency(financialStats.cajaRealFinal)} icon={PiggyBank} color={financialStats.cajaRealFinal >= 0 ? "bg-emerald-600" : "bg-red-600"} detail="6" subtext="Bolsillo del Mes" valueClass={financialStats.cajaRealFinal < 0 ? "text-red-600" : "text-slate-800"} />
               <KPICard title="Dependencia Financiera" value={formatCurrency(financialStats.dependenciaFinanciera)} icon={Landmark} color={financialStats.dependenciaFinanciera < 0 ? "bg-red-600" : "bg-slate-800"} detail="7" subtext="Aportes + Financiamiento" valueClass={financialStats.dependenciaFinanciera < 0 ? "text-red-600" : "text-slate-800"} />
             </div>
-            <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
-              <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><BarChart2 size={16}/> Explicación de la Caja del Mes</h3>
-              <ResponsiveContainer width="100%" height="80%">
-                <BarChart data={[
-                  { name: 'R. Operativo', valor: financialStats.resultadoOperativo, base: 0, fill: '#3b82f6', label: 'Resultado Operativo' },
-                  { name: 'Comprometido', valor: financialStats.cajaComprometida, base: Math.max(0, financialStats.resultadoOperativo), fill: '#f97316', label: '+ Caja Comprometida' },
-                  { name: 'Caja Libre', valor: financialStats.cajaLibreReal, base: 0, fill: '#10b981', label: '= Caja Libre Real' },
-                  { name: 'Personal', valor: financialStats.personalNeto, base: Math.max(0, financialStats.cajaLibreReal), fill: '#ec4899', label: '+ Personal (Neto)' },
-                  { name: 'Financiamiento', valor: financialStats.financiamientoNeto, base: Math.max(0, financialStats.cajaLibreReal + financialStats.personalNeto), fill: '#8b5cf6', label: '+ Financiamiento Neto' },
-                  { name: 'Caja Final', valor: financialStats.cajaRealFinal, base: 0, fill: financialStats.cajaRealFinal >= 0 ? '#14b8a6' : '#ef4444', label: '= Caja Real Final' }
-                ]}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} />
-                  <YAxis hide />
-                  <Tooltip cursor={{fill: 'transparent'}} content={({ active, payload }) => { 
-                    if (active && payload && payload.length) {
-                      const data = payload[0].payload;
-                      return (
-                        <div className="bg-white p-4 rounded-xl shadow-lg border">
-                          <p className="font-bold text-slate-500 text-xs">{data.label}</p>
-                          <p className={`font-black text-lg ${data.valor < 0 ? 'text-red-600' : 'text-slate-800'}`}>{formatCurrency(data.valor)}</p>
-                        </div>
-                      );
-                    }
-                    return null; 
-                  }} />
-                  <Bar dataKey="base" stackId="a" fill="transparent" />
-                  <Bar dataKey="valor" stackId="a" radius={[6, 6, 6, 6]}>
-                    <Cell fill="#3b82f6" />
-                    <Cell fill="#f97316" />
-                    <Cell fill="#10b981" />
-                    <Cell fill="#ec4899" />
-                    <Cell fill="#8b5cf6" />
-                    <Cell fill={financialStats.cajaRealFinal >= 0 ? '#14b8a6' : '#ef4444'} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
+                <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><BarChart2 size={16}/> Explicación de la Caja del Mes</h3>
+                <ResponsiveContainer width="100%" height="80%">
+                  <BarChart data={[
+                    { name: 'R. Operativo', valor: financialStats.resultadoOperativo, base: 0, fill: '#3b82f6', label: 'Resultado Operativo' },
+                    { name: 'Comprometido', valor: financialStats.cajaComprometida, base: Math.max(0, financialStats.resultadoOperativo), fill: '#f97316', label: '+ Caja Comprometida' },
+                    { name: 'Caja Libre', valor: financialStats.cajaLibreReal, base: 0, fill: '#10b981', label: '= Caja Libre Real' },
+                    { name: 'Personal', valor: financialStats.personalNeto, base: Math.max(0, financialStats.cajaLibreReal), fill: '#ec4899', label: '+ Personal (Neto)' },
+                    { name: 'Financiamiento', valor: financialStats.financiamientoNeto, base: Math.max(0, financialStats.cajaLibreReal + financialStats.personalNeto), fill: '#8b5cf6', label: '+ Financiamiento Neto' },
+                    { name: 'Caja Final', valor: financialStats.cajaRealFinal, base: 0, fill: financialStats.cajaRealFinal >= 0 ? '#14b8a6' : '#ef4444', label: '= Caja Real Final' }
+                  ]}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} />
+                    <YAxis hide />
+                    <Tooltip cursor={{fill: 'transparent'}} content={({ active, payload }) => { 
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div className="bg-white p-4 rounded-xl shadow-lg border">
+                            <p className="font-bold text-slate-500 text-xs">{data.label}</p>
+                            <p className={`font-black text-lg ${data.valor < 0 ? 'text-red-600' : 'text-slate-800'}`}>{formatCurrency(data.valor)}</p>
+                          </div>
+                        );
+                      }
+                      return null; 
+                    }} />
+                    <Bar dataKey="base" stackId="a" fill="transparent" />
+                    <Bar dataKey="valor" stackId="a" radius={[6, 6, 6, 6]}>
+                      <Cell fill="#3b82f6" />
+                      <Cell fill="#f97316" />
+                      <Cell fill="#10b981" />
+                      <Cell fill="#ec4899" />
+                      <Cell fill="#8b5cf6" />
+                      <Cell fill={financialStats.cajaRealFinal >= 0 ? '#14b8a6' : '#ef4444'} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
+                <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><TrendingUp size={16}/> Evolución Caja Real Final</h3>
+                <ResponsiveContainer width="100%" height="80%">
+                  <AreaChart data={financialTrendData}>
+                    <defs>
+                      <linearGradient id="colorCaja" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.01}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} tickFormatter={(v) => formatCurrency(v).split(',')[0]} width={80} />
+                    <Tooltip 
+                      contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)'}}
+                      formatter={(value) => [formatCurrency(value), 'Caja Real Final']}
+                    />
+                    <Area type="monotone" dataKey="valor" stroke="#10b981" strokeWidth={4} fillOpacity={1} fill="url(#colorCaja)" dot={{r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#fff'}} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </>
         )}
