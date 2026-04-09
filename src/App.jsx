@@ -1493,17 +1493,37 @@ const App = () => {
     const monthsRaw = [...new Set(data.filter(d => d.Mes && d.Mes !== 'Acumulado').map(d => d.Mes))];
     
     const sorted = monthsRaw.sort((a, b) => {
-      const da = parseSmartDate('01 ' + a);
-      const db = parseSmartDate('01 ' + b);
-      return (da && db) ? da - db : 0;
+      // Intentamos parsear asumiendo formatos comunes o usando MONTH_MAP
+      const parseForSort = (str) => {
+        const parts = str.toUpperCase().split(/[-/ ]/);
+        let month = -1, year = -1;
+        parts.forEach(p => {
+          if (!isNaN(parseInt(p)) && p.length >= 2) {
+             const n = parseInt(p);
+             if (n > 31) year = n < 100 ? 2000 + n : n;
+          }
+          if (MONTH_MAP.hasOwnProperty(p)) month = MONTH_MAP[p];
+        });
+        if (month !== -1 && year !== -1) return year * 100 + month;
+        // Fallback al parseSmartDate original
+        const d = parseSmartDate('01 ' + str);
+        return d ? d.getTime() : 0;
+      };
+      return parseForSort(a) - parseForSort(b);
     });
 
     return sorted.map(m => {
       const filtered = data.filter(d => d.Mes === m);
       const calc = (t) => filtered.filter(r => r.Tipo?.toLowerCase().includes(t)).reduce((a,b) => a + (b.Entrada||0) - (b.Salida||0), 0);
       const cajaRealFinal = calc('operativo') + calc('comprometida') + calc('personal') + calc('financiamiento');
+      
+      // Formato corto para el eje X (ej: Oct 25)
+      const periodLabel = formatPeriod(m);
+      const shortLabel = periodLabel.length > 10 ? periodLabel.substring(0, 3) + periodLabel.substring(periodLabel.length - 3) : periodLabel;
+
       return {
-        name: formatPeriod(m),
+        name: periodLabel,
+        shortName: shortLabel,
         valor: cajaRealFinal,
         rawMonth: m
       };
@@ -2287,11 +2307,21 @@ const App = () => {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} dy={10} />
+                    <XAxis 
+                      dataKey="shortName" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}}
+                      interval={0}
+                      angle={-25}
+                      textAnchor="end"
+                      height={50}
+                    />
                     <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} tickFormatter={(v) => formatCurrency(v).split(',')[0]} width={80} />
                     <Tooltip 
                       contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)'}}
                       formatter={(value) => [formatCurrency(value), 'Caja Real Final']}
+                      labelFormatter={(name, payload) => payload?.[0]?.payload?.name || name}
                     />
                     <Area type="monotone" dataKey="valor" stroke="#10b981" strokeWidth={4} fillOpacity={1} fill="url(#colorCaja)" dot={{r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#fff'}} />
                   </AreaChart>
