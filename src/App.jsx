@@ -2297,7 +2297,7 @@ const App = () => {
               <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
                 <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><TrendingUp size={16}/> Evolución Caja Real Final</h3>
                 <ResponsiveContainer width="100%" height="80%">
-                  <AreaChart data={financialTrendData}>
+                  <AreaChart data={financialTrendData} margin={{ top: 10, right: 40, left: 10, bottom: 20 }}>
                     <defs>
                       <linearGradient id="colorCaja" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
@@ -2309,11 +2309,12 @@ const App = () => {
                       dataKey="shortName" 
                       axisLine={false} 
                       tickLine={false} 
-                      tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}}
+                      tick={{ fontSize: 11, fontWeight: 900, fill: '#94a3b8' }}
                       interval={0}
-                      angle={-25}
+                      angle={-35}
                       textAnchor="end"
-                      height={50}
+                      height={60}
+                      padding={{ left: 10, right: 30 }}
                     />
                     <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} tickFormatter={(v) => formatCurrency(v).split(',')[0]} width={80} />
                     <Tooltip 
