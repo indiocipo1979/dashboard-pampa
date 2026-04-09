@@ -1504,12 +1504,19 @@ const App = () => {
       const cajaRealFinal = calc('operativo') + calc('comprometida') + calc('personal') + calc('financiamiento');
       
       // Intentamos obtener una fecha válida para formatear
-      const d = parseSmartDate('01 ' + m) || parseSmartDate(m);
+      let d = parseSmartDate('01 ' + m) || parseSmartDate(m);
+      
+      // Si falla pero es un nombre de mes conocido, forzamos el año actual
+      if (!d && MONTH_MAP.hasOwnProperty(m.toUpperCase())) {
+          const now = new Date();
+          d = new Date(now.getFullYear(), MONTH_MAP[m.toUpperCase()], 1);
+      }
+
       const monthsNamesShort = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
       
       let shortLabel = m.toLowerCase();
       if (d) {
-        shortLabel = `${monthsNamesShort[d.getMonth()]} ${String(d.getFullYear()).substring(2)}`;
+        shortLabel = `${monthsNamesShort[d.getMonth()]}-${String(d.getFullYear()).substring(2)}`;
       }
 
       return {
