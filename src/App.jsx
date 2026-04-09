@@ -1519,11 +1519,11 @@ const App = () => {
       
       // Formato exacto: ene 25, feb 25, etc.
       const periodLabel = formatPeriod(m); 
-      const parts = periodLabel.split(' ');
+      const parts = periodLabel.trim().split(/\s+/);
       let shortLabel = periodLabel.toLowerCase();
-      if (parts.length === 2) {
+      if (parts.length >= 2) {
         const mes = parts[0].substring(0, 3).toLowerCase();
-        const anio = parts[1].substring(parts[1].length - 2);
+        const anio = parts[parts.length - 1].substring(parts[parts.length - 1].length - 2);
         shortLabel = `${mes} ${anio}`;
       }
 
