@@ -1493,23 +1493,9 @@ const App = () => {
     const monthsRaw = [...new Set(data.filter(d => d.Mes && d.Mes !== 'Acumulado').map(d => d.Mes))];
     
     const sorted = monthsRaw.sort((a, b) => {
-      // Intentamos parsear asumiendo formatos comunes o usando MONTH_MAP
-      const parseForSort = (str) => {
-        const parts = str.toUpperCase().split(/[-/ ]/);
-        let month = -1, year = -1;
-        parts.forEach(p => {
-          if (!isNaN(parseInt(p)) && p.length >= 2) {
-             const n = parseInt(p);
-             if (n > 31) year = n < 100 ? 2000 + n : n;
-          }
-          if (MONTH_MAP.hasOwnProperty(p)) month = MONTH_MAP[p];
-        });
-        if (month !== -1 && year !== -1) return year * 100 + month;
-        // Fallback al parseSmartDate original
-        const d = parseSmartDate('01 ' + str);
-        return d ? d.getTime() : 0;
-      };
-      return parseForSort(a) - parseForSort(b);
+      const da = parseSmartDate('01 ' + a) || parseSmartDate(a);
+      const db = parseSmartDate('01 ' + b) || parseSmartDate(b);
+      return (da?.getTime() || 0) - (db?.getTime() || 0);
     });
 
     return sorted.map(m => {
@@ -1517,18 +1503,17 @@ const App = () => {
       const calc = (t) => filtered.filter(r => r.Tipo?.toLowerCase().includes(t)).reduce((a,b) => a + (b.Entrada||0) - (b.Salida||0), 0);
       const cajaRealFinal = calc('operativo') + calc('comprometida') + calc('personal') + calc('financiamiento');
       
-      // Formato exacto: ene 25, feb 25, etc.
-      const periodLabel = formatPeriod(m); 
-      const parts = periodLabel.trim().split(/\s+/);
-      let shortLabel = periodLabel.toLowerCase();
-      if (parts.length >= 2) {
-        const mes = parts[0].substring(0, 3).toLowerCase();
-        const anio = parts[parts.length - 1].substring(parts[parts.length - 1].length - 2);
-        shortLabel = `${mes} ${anio}`;
+      // Intentamos obtener una fecha válida para formatear
+      const d = parseSmartDate('01 ' + m) || parseSmartDate(m);
+      const monthsNamesShort = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+      
+      let shortLabel = m.toLowerCase();
+      if (d) {
+        shortLabel = `${monthsNamesShort[d.getMonth()]} ${String(d.getFullYear()).substring(2)}`;
       }
 
       return {
-        name: periodLabel,
+        name: formatPeriod(m),
         shortName: shortLabel,
         valor: cajaRealFinal,
         rawMonth: m
