@@ -1517,9 +1517,15 @@ const App = () => {
       const calc = (t) => filtered.filter(r => r.Tipo?.toLowerCase().includes(t)).reduce((a,b) => a + (b.Entrada||0) - (b.Salida||0), 0);
       const cajaRealFinal = calc('operativo') + calc('comprometida') + calc('personal') + calc('financiamiento');
       
-      // Formato corto para el eje X (ej: Oct 25)
-      const periodLabel = formatPeriod(m);
-      const shortLabel = periodLabel.length > 10 ? periodLabel.substring(0, 3) + periodLabel.substring(periodLabel.length - 3) : periodLabel;
+      // Formato exacto: ene 25, feb 25, etc.
+      const periodLabel = formatPeriod(m); 
+      const parts = periodLabel.split(' ');
+      let shortLabel = periodLabel.toLowerCase();
+      if (parts.length === 2) {
+        const mes = parts[0].substring(0, 3).toLowerCase();
+        const anio = parts[1].substring(parts[1].length - 2);
+        shortLabel = `${mes} ${anio}`;
+      }
 
       return {
         name: periodLabel,
