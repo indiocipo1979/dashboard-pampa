@@ -2247,7 +2247,7 @@ const App = () => {
               <KPICard title="Caja Real Final" value={formatCurrency(financialStats.cajaRealFinal)} icon={PiggyBank} color={financialStats.cajaRealFinal >= 0 ? "bg-emerald-600" : "bg-red-600"} detail="6" subtext="Bolsillo del Mes" valueClass={financialStats.cajaRealFinal < 0 ? "text-red-600" : "text-slate-800"} />
               <KPICard title="Dependencia Financiera" value={formatCurrency(financialStats.dependenciaFinanciera)} icon={Landmark} color={financialStats.dependenciaFinanciera < 0 ? "bg-red-600" : "bg-slate-800"} detail="7" subtext="Aportes + Financiamiento" valueClass={financialStats.dependenciaFinanciera < 0 ? "text-red-600" : "text-slate-800"} />
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 gap-8">
               <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
                 <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><BarChart2 size={16}/> Explicación de la Caja del Mes</h3>
                 <ResponsiveContainer width="100%" height="80%">
