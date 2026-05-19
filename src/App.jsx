@@ -2241,7 +2241,7 @@ const App = () => {
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                         <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} interval={0} />
                         <Tooltip cursor={{fill: 'transparent'}} content={({ active, payload }) => { if (active && payload && payload.length) { const data = payload[0].payload; return ( <div className="bg-white p-4 rounded-xl shadow-lg border"><p className="font-bold text-slate-500 text-xs">{data.label}</p><p className="font-black text-lg text-slate-800">{formatCurrency(data.valor)}</p></div> ); } return null; }} />
-                        <Bar dataKey="base" stackId="a" fill="transparent" />
+                        <Bar dataKey="base" stackId="a" fill="none" fillOpacity={0} strokeOpacity={0} />
                         <Bar dataKey="valor" stackId="a" radius={[6, 6, 6, 6]}>
                           {chartData.waterfall.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.fill} />))}
                         </Bar>
@@ -2294,7 +2294,7 @@ const App = () => {
                       }
                       return null; 
                     }} />
-                    <Bar dataKey="base" stackId="a" fill="transparent" />
+                    <Bar dataKey="base" stackId="a" fill="none" fillOpacity={0} strokeOpacity={0} />
                     <Bar dataKey="valor" stackId="a" radius={[6, 6, 6, 6]}>
                       <Cell fill="#3b82f6" />
                       <Cell fill="#f97316" />
