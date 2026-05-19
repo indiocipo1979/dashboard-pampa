@@ -90,6 +90,19 @@ const parseSmartDate = (dateStr) => {
   let isoDate = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T12:00:00');
   if (!isNaN(isoDate.getTime())) return isoDate;
 
+  // 1b. Try parsing YYYY/MM or YYYY-MM (optionally with day prefix "DD YYYY/MM")
+  const cleanStr = dateStr.trim().toUpperCase();
+  const yyyyMmRegex = /^(?:(\d{1,2})[-/ ]+)?(\d{4})[-/ ]+(\d{1,2})$/;
+  const match = cleanStr.match(yyyyMmRegex);
+  if (match) {
+    const day = match[1] ? parseInt(match[1]) : 1;
+    const year = parseInt(match[2]);
+    const monthIdx = parseInt(match[3]) - 1;
+    if (monthIdx >= 0 && monthIdx <= 11) {
+      return new Date(year, monthIdx, day, 12, 0, 0);
+    }
+  }
+
   // 2. Limpieza para formatos de texto (17-dic-25, 23/ene/26)
   const clean = dateStr.toString().trim().toUpperCase().replace(/[/.]/g, '-');
   const parts = clean.split('-');
@@ -2196,7 +2209,7 @@ const App = () => {
                     <ResponsiveContainer width="100%" height="80%">
                       <ComposedChart data={chartData.trend}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#cbd5e1'}} dy={10} />
+                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 9, fontWeight: 900, fill: '#cbd5e1'}} dy={5} angle={-15} textAnchor="end" height={45} interval={0} />
                         <Tooltip contentStyle={{borderRadius: '16px', border: 'none'}} formatter={(value) => formatCurrency(value)} />
                         <Legend />
                         <Bar dataKey="ventas" name="Ventas Reales" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={20} />
@@ -2209,7 +2222,7 @@ const App = () => {
                     <ResponsiveContainer width="100%" height="80%">
                       <ComposedChart data={chartData.trend}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#cbd5e1'}} dy={10} />
+                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 9, fontWeight: 900, fill: '#cbd5e1'}} dy={5} angle={-15} textAnchor="end" height={45} interval={0} />
                         <Tooltip contentStyle={{borderRadius: '16px', border: 'none'}} formatter={(value) => formatCurrency(value)} />
                         <Legend />
                         <Bar dataKey="ventas" name="Ventas (Contexto)" fill="#e2e8f0" radius={[4, 4, 0, 0]} barSize={20} />
