@@ -285,6 +285,7 @@ const App = () => {
    
   const [selectedBranch, setSelectedBranch] = useState('Todas');
   const [selectedMonth, setSelectedMonth] = useState('Acumulado');
+  const [targetProfitInput, setTargetProfitInput] = useState(1500000);
 
   // Estados Firebase
   const [proveedores, setProveedores] = useState([]);
@@ -1502,7 +1503,7 @@ const App = () => {
     });
 
     const multiplier = activeCombos.size > 0 ? activeCombos.size : 1;
-    const baseTargetProfit = 1500000;
+    const baseTargetProfit = targetProfitInput;
     const targetProfitTotal = baseTargetProfit * multiplier;
 
     const sum = (tipo) => filtered.filter(r => r.Concepto?.toLowerCase().includes(tipo)).reduce((a, b) => a + Math.abs(b.Monto || 0), 0);
@@ -1554,7 +1555,7 @@ const App = () => {
       desvioMargenBruto,
       desvioGananciaReal
     };
-  }, [data, selectedBranch, selectedMonth, currentTab, economicStats]);
+  }, [data, selectedBranch, selectedMonth, currentTab, economicStats, targetProfitInput]);
 
   const financialStats = useMemo(() => {
     if (currentTab !== 'financiero') return null;
@@ -1632,7 +1633,7 @@ const App = () => {
           const margen = ventas - cmv;
           const ebitda = margen - gastos;
           const ratio = ventas > 0 ? margen / ventas : 0;
-          const metaUtilidad = ratio > 0 ? (gastos + 1500000) / ratio : 0;
+          const metaUtilidad = ratio > 0 ? (gastos + targetProfitInput) / ratio : 0;
           return {
               name: formatPeriod(month), 
               rawMonth: month,
@@ -1644,7 +1645,7 @@ const App = () => {
       return { trend, waterfall };
     }
     return null;
-  }, [data, economicStats, currentTab, selectedBranch]);
+  }, [data, economicStats, currentTab, selectedBranch, targetProfitInput]);
 
   // --- KPI PROVEEDORES (LÓGICA CLEARING/FIFO) ---
   const proveedoresStats = useMemo(() => {
@@ -2188,6 +2189,21 @@ const App = () => {
                   <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={20} />
                 </div>
               </div>
+              {currentTab === 'economico' && (
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-xs font-black text-slate-400 uppercase mb-2 ml-1">Utilidad Deseada (Mensual)</label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                    <input 
+                      type="number" 
+                      className="w-full bg-slate-50 hover:bg-slate-100 transition-colors pl-12 pr-4 py-4 rounded-2xl font-black text-slate-700 outline-none" 
+                      value={targetProfitInput} 
+                      onChange={(e) => setTargetProfitInput(Number(e.target.value))}
+                      placeholder="1500000"
+                    />
+                  </div>
+                </div>
+              )}
 
             </div>
           </div>
@@ -2274,7 +2290,7 @@ const App = () => {
             {chartData && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
-                    <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><Scale size={16}/> Ventas vs Meta de Utilidad Deseada ($1.5M)</h3>
+                    <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><Scale size={16}/> Ventas vs Meta de Utilidad Deseada</h3>
                     <ResponsiveContainer width="100%" height="80%">
                       <ComposedChart data={chartData.trend}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -2282,7 +2298,7 @@ const App = () => {
                         <Tooltip contentStyle={{borderRadius: '16px', border: 'none'}} formatter={(value) => formatCurrency(value)} />
                         <Legend />
                         <Bar dataKey="ventas" name="Ventas Reales" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={20} />
-                        <Line type="monotone" dataKey="metaUtilidad" name="Venta Requerida (Ganancia $1.5M)" stroke="#ef4444" strokeWidth={3} strokeDasharray="5 5" dot={{r: 4, fill: '#ef4444'}} />
+                        <Line type="monotone" dataKey="metaUtilidad" name="Venta Requerida (Meta Ganancia)" stroke="#ef4444" strokeWidth={3} strokeDasharray="5 5" dot={{r: 4, fill: '#ef4444'}} />
                       </ComposedChart>
                     </ResponsiveContainer>
                   </div>
@@ -2327,7 +2343,7 @@ const App = () => {
                       <Scale size={16} /> P&L Comparativo vs Meta de Utilidad Deseada
                     </h3>
                     <p className="text-slate-400 text-xs mt-1">
-                      Meta de utilidad calculada: <strong>{formatCurrency(targetProfitStats.targetProfitTotal)}</strong> ({targetProfitStats.multiplier} {targetProfitStats.multiplier === 1 ? 'sucursal-mes' : 'sucursales-meses'} a $1.5M/mes c/u)
+                      Meta de utilidad calculada: <strong>{formatCurrency(targetProfitStats.targetProfitTotal)}</strong> ({targetProfitStats.multiplier} {targetProfitStats.multiplier === 1 ? 'sucursal-mes' : 'sucursales-meses'} a {formatCurrency(targetProfitInput)}/mes c/u)
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
