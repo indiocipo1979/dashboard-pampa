@@ -287,6 +287,12 @@ const App = () => {
   const [selectedMonth, setSelectedMonth] = useState('Acumulado');
   const [targetProfitInput, setTargetProfitInput] = useState(1500000);
 
+  const handleTargetProfitInputChange = (e) => {
+    const cleanValStr = e.target.value.replace(/\D/g, '');
+    const numericVal = cleanValStr ? parseInt(cleanValStr, 10) : 0;
+    setTargetProfitInput(numericVal);
+  };
+
   // Estados Firebase
   const [proveedores, setProveedores] = useState([]);
   const [facturas, setFacturas] = useState([]);
@@ -2195,11 +2201,11 @@ const App = () => {
                   <div className="relative">
                     <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
                     <input 
-                      type="number" 
+                      type="text" 
                       className="w-full bg-slate-50 hover:bg-slate-100 transition-colors pl-12 pr-4 py-4 rounded-2xl font-black text-slate-700 outline-none" 
-                      value={targetProfitInput} 
-                      onChange={(e) => setTargetProfitInput(Number(e.target.value))}
-                      placeholder="1500000"
+                      value={targetProfitInput === 0 ? '' : new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(targetProfitInput)}
+                      onChange={handleTargetProfitInputChange}
+                      placeholder="1.500.000"
                     />
                   </div>
                 </div>
