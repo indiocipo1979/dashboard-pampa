@@ -1487,6 +1487,75 @@ const App = () => {
     return { ventasNetas, ebitda, margenPct, totalGastos, margenBruto, puntoEquilibrio, pesoGastosFijos: pesoGastos, margenBrutoPct };
   }, [data, selectedBranch, selectedMonth, currentTab]);
 
+  const targetProfitStats = useMemo(() => {
+    if (currentTab !== 'economico' || !economicStats) return null;
+
+    const filtered = data.filter(d => (selectedBranch === 'Todas' || d.Sucursal === selectedBranch) && (selectedMonth === 'Acumulado' || d.Mes === selectedMonth));
+    
+    const activeCombos = new Set();
+    filtered.forEach(d => {
+      const m = String(d.Mes || '').trim();
+      const s = String(d.Sucursal || '').trim();
+      if (m && m !== 'Acumulado' && s && s !== 'Todas' && s !== 'Global') {
+        activeCombos.add(`${m}-${s}`);
+      }
+    });
+
+    const multiplier = activeCombos.size > 0 ? activeCombos.size : 1;
+    const baseTargetProfit = 1500000;
+    const targetProfitTotal = baseTargetProfit * multiplier;
+
+    const sum = (tipo) => filtered.filter(r => r.Concepto?.toLowerCase().includes(tipo)).reduce((a, b) => a + Math.abs(b.Monto || 0), 0);
+    
+    const ventasBrutas = sum('venta');
+    const comisiones = sum('comision');
+    const ventasNetas = ventasBrutas - comisiones;
+    const cmv = sum('cmv');
+    const margenBruto = ventasNetas - cmv;
+    const gastosFijos = sum('gasto');
+    const gananciaReal = margenBruto - gastosFijos;
+    
+    const ratioMargen = ventasNetas > 0 ? margenBruto / ventasNetas : 0;
+    const ratioComisiones = ventasBrutas > 0 ? comisiones / ventasBrutas : 0;
+    const ratioCmv = ventasNetas > 0 ? cmv / ventasNetas : 0;
+    
+    const targetMargen = gastosFijos + targetProfitTotal;
+    const targetVNetas = ratioMargen > 0 ? targetMargen / ratioMargen : 0;
+    const targetVBrutas = (1 - ratioComisiones) > 0 ? targetVNetas / (1 - ratioComisiones) : 0;
+    const targetCmv = targetVNetas * ratioCmv;
+    const targetComisiones = targetVBrutas * ratioComisiones;
+    
+    const desvioVentasBrutas = ventasBrutas - targetVBrutas;
+    const desvioComisiones = targetComisiones - comisiones;
+    const desvioCmv = targetCmv - cmv;
+    const desvioVentasNetas = ventasNetas - targetVNetas;
+    const desvioMargenBruto = margenBruto - targetMargen;
+    const desvioGananciaReal = gananciaReal - targetProfitTotal;
+
+    return {
+      multiplier,
+      targetProfitTotal,
+      ventasBrutas,
+      comisiones,
+      ventasNetas,
+      cmv,
+      margenBruto,
+      gastosFijos,
+      gananciaReal,
+      targetVBrutas,
+      targetComisiones,
+      targetVNetas,
+      targetCmv,
+      targetMargen,
+      desvioVentasBrutas,
+      desvioComisiones,
+      desvioVentasNetas,
+      desvioCmv,
+      desvioMargenBruto,
+      desvioGananciaReal
+    };
+  }, [data, selectedBranch, selectedMonth, currentTab, economicStats]);
+
   const financialStats = useMemo(() => {
     if (currentTab !== 'financiero') return null;
     const filtered = data.filter(d => selectedMonth === 'Acumulado' || d.Mes === selectedMonth);
@@ -2249,6 +2318,94 @@ const App = () => {
                     </ResponsiveContainer>
                   </div>
                 </div>
+            )}
+            {targetProfitStats && (
+              <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 mt-8">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                  <div>
+                    <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest flex items-center gap-2">
+                      <Scale size={16} /> P&L Comparativo vs Meta de Utilidad Deseada
+                    </h3>
+                    <p className="text-slate-400 text-xs mt-1">
+                      Meta de utilidad calculada: <strong>{formatCurrency(targetProfitStats.targetProfitTotal)}</strong> ({targetProfitStats.multiplier} {targetProfitStats.multiplier === 1 ? 'sucursal-mes' : 'sucursales-meses'} a $1.5M/mes c/u)
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-4 py-2 rounded-xl text-xs font-black uppercase ${targetProfitStats.gananciaReal >= targetProfitStats.targetProfitTotal ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                      {targetProfitStats.gananciaReal >= targetProfitStats.targetProfitTotal ? 'Meta Cumplida ✓' : 'Meta No Alcanzada ✗'}
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-100">
+                        <th className="pb-3 text-xs font-black text-slate-400 uppercase">Concepto</th>
+                        <th className="pb-3 text-xs font-black text-slate-400 uppercase text-right">Real</th>
+                        <th className="pb-3 text-xs font-black text-slate-400 uppercase text-right">Objetivo</th>
+                        <th className="pb-3 text-xs font-black text-slate-400 uppercase text-right">Desvío</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50 text-sm">
+                      <tr>
+                        <td className="py-3 font-semibold text-slate-600">Ventas Brutas</td>
+                        <td className="py-3 text-right font-bold text-slate-800">{formatCurrency(targetProfitStats.ventasBrutas)}</td>
+                        <td className="py-3 text-right font-medium text-slate-500">{formatCurrency(targetProfitStats.targetVBrutas)}</td>
+                        <td className={`py-3 text-right font-black ${targetProfitStats.desvioVentasBrutas >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                          {targetProfitStats.desvioVentasBrutas >= 0 ? '+' : ''}{formatCurrency(targetProfitStats.desvioVentasBrutas)}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="py-3 font-semibold text-slate-600">(-) Comisiones de Cobro</td>
+                        <td className="py-3 text-right font-bold text-slate-500">-{formatCurrency(targetProfitStats.comisiones)}</td>
+                        <td className="py-3 text-right font-medium text-slate-400">-{formatCurrency(targetProfitStats.targetComisiones)}</td>
+                        <td className={`py-3 text-right font-black ${targetProfitStats.desvioComisiones >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                          {targetProfitStats.desvioComisiones >= 0 ? '+' : ''}{formatCurrency(targetProfitStats.desvioComisiones)}
+                        </td>
+                      </tr>
+                      <tr className="bg-slate-50/50 font-bold">
+                        <td className="py-3 text-slate-700">(=) Ventas Netas</td>
+                        <td className="py-3 text-right text-slate-800">{formatCurrency(targetProfitStats.ventasNetas)}</td>
+                        <td className="py-3 text-right text-slate-600">{formatCurrency(targetProfitStats.targetVNetas)}</td>
+                        <td className={`py-3 text-right ${targetProfitStats.desvioVentasNetas >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                          {targetProfitStats.desvioVentasNetas >= 0 ? '+' : ''}{formatCurrency(targetProfitStats.desvioVentasNetas)}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="py-3 font-semibold text-slate-600">(-) Costo Mercadería (CMV)</td>
+                        <td className="py-3 text-right font-bold text-slate-500">-{formatCurrency(targetProfitStats.cmv)}</td>
+                        <td className="py-3 text-right font-medium text-slate-400">-{formatCurrency(targetProfitStats.targetCmv)}</td>
+                        <td className={`py-3 text-right font-black ${targetProfitStats.desvioCmv >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                          {targetProfitStats.desvioCmv >= 0 ? '+' : ''}{formatCurrency(targetProfitStats.desvioCmv)}
+                        </td>
+                      </tr>
+                      <tr className="bg-slate-50/50 font-bold">
+                        <td className="py-3 text-slate-700">(=) Margen Bruto</td>
+                        <td className="py-3 text-right text-slate-800">{formatCurrency(targetProfitStats.margenBruto)}</td>
+                        <td className="py-3 text-right text-slate-600">{formatCurrency(targetProfitStats.targetMargen)}</td>
+                        <td className={`py-3 text-right ${targetProfitStats.desvioMargenBruto >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                          {targetProfitStats.desvioMargenBruto >= 0 ? '+' : ''}{formatCurrency(targetProfitStats.desvioMargenBruto)}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="py-3 font-semibold text-slate-600">(-) Gastos Fijos (Estructura)</td>
+                        <td className="py-3 text-right font-bold text-slate-800">-{formatCurrency(targetProfitStats.gastosFijos)}</td>
+                        <td className="py-3 text-right font-medium text-slate-500">-{formatCurrency(targetProfitStats.gastosFijos)}</td>
+                        <td className="py-3 text-right font-bold text-slate-400">$0</td>
+                      </tr>
+                      <tr className="bg-slate-100/60 font-black text-base border-t border-slate-200">
+                        <td className="py-4 text-slate-800">(=) Utilidad Limpia (EBITDA)</td>
+                        <td className="py-4 text-right text-slate-800">{formatCurrency(targetProfitStats.gananciaReal)}</td>
+                        <td className="py-4 text-right text-slate-600">{formatCurrency(targetProfitStats.targetProfitTotal)}</td>
+                        <td className={`py-4 text-right ${targetProfitStats.desvioGananciaReal >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                          {targetProfitStats.desvioGananciaReal >= 0 ? '+' : ''}{formatCurrency(targetProfitStats.desvioGananciaReal)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             )}
           </>
         )}
