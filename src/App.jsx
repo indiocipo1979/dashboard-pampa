@@ -1563,12 +1563,12 @@ const App = () => {
           const margen = ventas - cmv;
           const ebitda = margen - gastos;
           const ratio = ventas > 0 ? margen / ventas : 0;
-          const equilibrio = ratio > 0 ? gastos / ratio : 0;
+          const metaUtilidad = ratio > 0 ? (gastos + 1500000) / ratio : 0;
           return {
               name: formatPeriod(month), 
               rawMonth: month,
               ventas,
-              equilibrio,
+              metaUtilidad,
               ebitda
           };
       });
@@ -2205,7 +2205,7 @@ const App = () => {
             {chartData && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
-                    <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><Scale size={16}/> Punto de Equilibrio vs Ventas</h3>
+                    <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2"><Scale size={16}/> Ventas vs Meta de Utilidad Deseada ($1.5M)</h3>
                     <ResponsiveContainer width="100%" height="80%">
                       <ComposedChart data={chartData.trend}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -2213,7 +2213,7 @@ const App = () => {
                         <Tooltip contentStyle={{borderRadius: '16px', border: 'none'}} formatter={(value) => formatCurrency(value)} />
                         <Legend />
                         <Bar dataKey="ventas" name="Ventas Reales" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={20} />
-                        <Line type="monotone" dataKey="equilibrio" name="Meta (Equilibrio)" stroke="#ef4444" strokeWidth={3} strokeDasharray="5 5" dot={{r: 4, fill: '#ef4444'}} />
+                        <Line type="monotone" dataKey="metaUtilidad" name="Venta Requerida (Ganancia $1.5M)" stroke="#ef4444" strokeWidth={3} strokeDasharray="5 5" dot={{r: 4, fill: '#ef4444'}} />
                       </ComposedChart>
                     </ResponsiveContainer>
                   </div>
