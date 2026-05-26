@@ -2231,68 +2231,69 @@ const App = () => {
               <DonutKPI label="Cobertura Punto de Equilibrio" value={economicStats.puntoEquilibrio > 0 ? (economicStats.ventasNetas / economicStats.puntoEquilibrio) * 100 : 0} units="%" max={200} green={120} yellow={80} />
               <DonutKPI label="Peso Gastos Fijos s/Venta" value={economicStats.pesoGastosFijos} units="%" max={60} green={40} yellow={25} />
             </div>
-            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
-                <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest flex items-center gap-2"><List size={16}/> Ticket Promedio</h3>
-                <div className="flex flex-col xs:flex-row items-stretch xs:items-center gap-2 flex-wrap md:justify-end w-full md:w-auto">
-                  <button
-                    type="button"
-                    onClick={() => setShowSalesImportModal(true)}
-                    className="w-full xs:w-auto px-3 py-1.5 rounded-xl text-[10px] font-black uppercase bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200 flex items-center justify-center gap-1.5"
-                  >
-                    <Upload size={12} /> Subir
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDeleteSelectedSalesStats}
-                    disabled={deletingSalesImport || !selectedSalesStats}
-                    className="w-full xs:w-auto px-3 py-1.5 rounded-xl text-[10px] font-black uppercase bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
-                  >
-                    {deletingSalesImport ? <Loader className="animate-spin" size={12} /> : <Trash2 size={12} />} Eliminar
-                  </button>
-                </div>
-              </div>
-
-              {!selectedSalesStats ? (
-                <div className="border border-dashed border-slate-200 rounded-2xl p-6 text-center">
-                  <p className="text-xs font-bold uppercase text-slate-500">Sin importaciones StarPOS todavía</p>
-
-                </div>
-              ) : (
-                <>
-                  <p className="text-sm md:text-base font-black uppercase tracking-wide text-slate-700 mb-3">Sucursal Mengelle</p>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    <KPICard title="Ticket Promedio" value={formatCurrency(selectedSalesStats.avgTicket)} icon={DollarSign} color="bg-purple-600" detail="Sucursal Mengelle" subtext={selectedSalesStats.periodLabel} valueClass="text-3xl text-slate-800" />
-                    <KPICard title="Cantidad Tickets" value={new Intl.NumberFormat('es-AR').format(cleanMonto(selectedSalesStats.ticketsCount))} icon={FileText} color="bg-blue-600" detail="Sucursal Mengelle" subtext={selectedSalesStats.periodLabel} valueClass="text-3xl text-slate-800" />
-                    <KPICard title="Día más fuerte" value={selectedSalesStats.bestWeekday || 'Sin datos'} icon={TrendingUp} color="bg-emerald-600" detail="Sucursal Mengelle" subtext={selectedSalesStats.periodLabel} valueClass="text-3xl text-slate-800" />
+            {selectedBranch === 'Mengelle' && (
+              <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
+                  <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest flex items-center gap-2"><List size={16}/> Ticket Promedio</h3>
+                  <div className="flex flex-col xs:flex-row items-stretch xs:items-center gap-2 flex-wrap md:justify-end w-full md:w-auto">
+                    <button
+                      type="button"
+                      onClick={() => setShowSalesImportModal(true)}
+                      className="w-full xs:w-auto px-3 py-1.5 rounded-xl text-[10px] font-black uppercase bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200 flex items-center justify-center gap-1.5"
+                    >
+                      <Upload size={12} /> Subir
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDeleteSelectedSalesStats}
+                      disabled={deletingSalesImport || !selectedSalesStats}
+                      className="w-full xs:w-auto px-3 py-1.5 rounded-xl text-[10px] font-black uppercase bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                    >
+                      {deletingSalesImport ? <Loader className="animate-spin" size={12} /> : <Trash2 size={12} />} Eliminar
+                    </button>
                   </div>
-                  {salesStatsSeries.length > 0 && (
-                    <div className="h-[260px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={salesTrendData} margin={{ top: 10, right: 44, left: 10, bottom: 10 }}>
-                          <defs>
-                            <linearGradient id="ticketGradient" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#7c3aed" stopOpacity={0.35} />
-                              <stop offset="95%" stopColor="#7c3aed" stopOpacity={0.03} />
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#e2e8f0" />
-                          <XAxis dataKey="periodShort" axisLine={false} tickLine={false} interval={0} minTickGap={0} tickMargin={10} padding={{ left: 8, right: 20 }} tick={{ fontSize: 11, fontWeight: 900, fill: '#64748b' }} />
-                          <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 800, fill: '#94a3b8' }} tickFormatter={(value) => `${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(value)}`} width={70} />
-                          <Tooltip
-                            contentStyle={{ borderRadius: '14px', border: '1px solid #e2e8f0', boxShadow: '0 10px 30px rgba(2,6,23,0.08)' }}
-                            labelStyle={{ fontWeight: 800, color: '#334155' }}
-                            formatter={(value, name) => name === 'ticketPromedio' ? [formatCurrency(value), 'Ticket Promedio'] : [new Intl.NumberFormat('es-AR').format(value), 'Cantidad Tickets']}
-                          />
-                          <Legend formatter={(value) => value === 'ticketPromedio' ? 'Ticket Promedio' : 'Cantidad Tickets'} />
-                          <Area yAxisId="left" type="monotone" dataKey="ticketPromedio" stroke="#7c3aed" strokeWidth={3} fill="url(#ticketGradient)" dot={renderSalesDot} activeDot={renderSalesDot} />
-                        </AreaChart>
-                      </ResponsiveContainer>
+                </div>
+
+                {!selectedSalesStats ? (
+                  <div className="border border-dashed border-slate-200 rounded-2xl p-6 text-center">
+                    <p className="text-xs font-bold uppercase text-slate-500">Sin importaciones StarPOS todavía</p>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-sm md:text-base font-black uppercase tracking-wide text-slate-700 mb-3">Sucursal Mengelle</p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                      <KPICard title="Ticket Promedio" value={formatCurrency(selectedSalesStats.avgTicket)} icon={DollarSign} color="bg-purple-600" detail="Sucursal Mengelle" subtext={selectedSalesStats.periodLabel} valueClass="text-3xl text-slate-800" />
+                      <KPICard title="Cantidad Tickets" value={new Intl.NumberFormat('es-AR').format(cleanMonto(selectedSalesStats.ticketsCount))} icon={FileText} color="bg-blue-600" detail="Sucursal Mengelle" subtext={selectedSalesStats.periodLabel} valueClass="text-3xl text-slate-800" />
+                      <KPICard title="Día más fuerte" value={selectedSalesStats.bestWeekday || 'Sin datos'} icon={TrendingUp} color="bg-emerald-600" detail="Sucursal Mengelle" subtext={selectedSalesStats.periodLabel} valueClass="text-3xl text-slate-800" />
                     </div>
-                  )}
-                </>
-              )}
-            </div>
+                    {salesStatsSeries.length > 0 && (
+                      <div className="h-[260px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={salesTrendData} margin={{ top: 10, right: 44, left: 10, bottom: 10 }}>
+                            <defs>
+                              <linearGradient id="ticketGradient" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#7c3aed" stopOpacity={0.35} />
+                                <stop offset="95%" stopColor="#7c3aed" stopOpacity={0.03} />
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#e2e8f0" />
+                            <XAxis dataKey="periodShort" axisLine={false} tickLine={false} interval={0} minTickGap={0} tickMargin={10} padding={{ left: 8, right: 20 }} tick={{ fontSize: 11, fontWeight: 900, fill: '#64748b' }} />
+                            <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 800, fill: '#94a3b8' }} tickFormatter={(value) => `${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(value)}`} width={70} />
+                            <Tooltip
+                              contentStyle={{ borderRadius: '14px', border: '1px solid #e2e8f0', boxShadow: '0 10px 30px rgba(2,6,23,0.08)' }}
+                              labelStyle={{ fontWeight: 800, color: '#334155' }}
+                              formatter={(value, name) => name === 'ticketPromedio' ? [formatCurrency(value), 'Ticket Promedio'] : [new Intl.NumberFormat('es-AR').format(value), 'Cantidad Tickets']}
+                            />
+                            <Legend formatter={(value) => value === 'ticketPromedio' ? 'Ticket Promedio' : 'Cantidad Tickets'} />
+                            <Area yAxisId="left" type="monotone" dataKey="ticketPromedio" stroke="#7c3aed" strokeWidth={3} fill="url(#ticketGradient)" dot={renderSalesDot} activeDot={renderSalesDot} />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
             {chartData && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 h-[450px]">
